@@ -4,8 +4,11 @@ Main Flask Application Server
 """
 
 import os
-from dotenv import load_dotenv
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from flask import Flask, render_template, jsonify, request, session, make_response
 from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads
 from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS, get_canonical_clients
