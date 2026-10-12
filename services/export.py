@@ -101,7 +101,7 @@ def build_answers_json():
         "your_name": "Arslan Tariq",
         "your_email": os.environ.get("SUBMISSION_EMAIL", "tsa6648@gmail.com"),
         "live_link": live_link or "https://axeom-business-intelligence.vercel.app",
-        "video_link": "",
+        "video_link": os.environ.get("SUBMISSION_VIDEO_LINK", "https://drive.google.com/file/d/10gawKb1ZWhdLixC-LrnjNLXrgM5K-m9D/view?usp=sharing"),
         "code_or_files_link": "https://github.com/arslantariq364/axeom-business-intelligence",
 
         "client_count": len(clients_formatted),
