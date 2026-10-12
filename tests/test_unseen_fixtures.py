@@ -21,6 +21,7 @@ def isolated_env(tmp_path, monkeypatch):
     """Provides a fully isolated test database populated from axeom.db."""
     test_db = str(tmp_path / "axeom_synthetic_test.db")
     shutil.copy("axeom.db", test_db)
+    monkeypatch.setenv("AXEOM_FORCE_SQLITE", "1")
     monkeypatch.setenv("AXEOM_DB_PATH", test_db)
     app.config["TESTING"] = True
     with app.test_client() as client:

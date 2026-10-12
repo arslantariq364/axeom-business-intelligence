@@ -31,13 +31,22 @@ def reconcile_finances():
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM invoices")
+    try:
+        cur.execute("SELECT * FROM invoices WHERE (deleted_at IS NULL OR deleted_at = '')")
+    except Exception:
+        cur.execute("SELECT * FROM invoices")
     invoices = [dict(r) for r in cur.fetchall()]
 
-    cur.execute("SELECT * FROM payments")
+    try:
+        cur.execute("SELECT * FROM payments WHERE (deleted_at IS NULL OR deleted_at = '')")
+    except Exception:
+        cur.execute("SELECT * FROM payments")
     payments = [dict(r) for r in cur.fetchall()]
 
-    cur.execute("SELECT * FROM bookings")
+    try:
+        cur.execute("SELECT * FROM bookings WHERE (deleted_at IS NULL OR deleted_at = '')")
+    except Exception:
+        cur.execute("SELECT * FROM bookings")
     bookings = [dict(r) for r in cur.fetchall()]
 
     conn.close()

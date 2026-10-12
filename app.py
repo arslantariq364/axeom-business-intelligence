@@ -4,9 +4,11 @@ Main Flask Application Server
 """
 
 import os
-from flask import Flask, render_template, jsonify, request
+from dotenv import load_dotenv
+load_dotenv()
+from flask import Flask, render_template, jsonify, request, session, make_response
 from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads
-from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS
+from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS, get_canonical_clients
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
@@ -14,9 +16,18 @@ from services.decisions import get_all_decisions, save_decision
 from services.history import get_client_history
 from services.ingest import process_file_upload
 from services.evidence import EVIDENCE_REGISTER, search_records
-from services.export import export_answers_json
+from services.export import export_answers_json, build_answers_json
+from services.auth import is_owner_authorized, authorize_owner_session, clear_owner_session
+from services.data_management import (
+    get_records, get_record, update_record, archive_record, restore_record,
+    soft_delete_record, calculate_impact, get_upload_history,
+    calculate_upload_reversal_impact, revert_upload, get_reset_preview,
+    execute_reset, get_audit_logs
+)
+from services.report_generator import generate_business_report, render_report_html
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "axeom-secret-production-key-2026")
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
 # Ensure database is initialized and seeded
@@ -69,9 +80,13 @@ def get_state():
     ana = get_analytics()
     decisions = get_all_decisions()
 
+    # Dynamic client listing respecting active vs. archived state
+    clients_list = get_canonical_clients(include_archived=True, include_deleted=False)
+    active_clients = [c for c in clients_list if not c.get("is_archived")]
+
     # Enrich canonical clients with financial stats
     enriched_clients = []
-    for c in CANONICAL_CLIENTS:
+    for c in clients_list:
         cf = fin['client_financials'].get(c['canonical_name'], {'invoiced': 0.0, 'paid': 0.0, 'overdue': 0.0, 'credit': 0.0})
         enriched_clients.append({
             **c,
@@ -87,8 +102,8 @@ def get_state():
     # High-level business pulse metrics
     metrics = {
         "as_of_date": "2026-10-06",
-        "client_count": len(CANONICAL_CLIENTS),
-        "active_clients_count": len(CANONICAL_CLIENTS),
+        "client_count": len(clients_list),
+        "active_clients_count": len(active_clients),
         "overdue_total": fin['overdue_total'],
         "overdue_count": len(fin['overdue']),
         "we_owe_total": fin['we_owe_total'],
@@ -104,6 +119,7 @@ def get_state():
     return jsonify({
         "status": "success",
         "metrics": metrics,
+        "is_owner_authorized": is_owner_authorized(),
         "today": {
             "hero_action": ana['churn'],
             "monday_top_3": ana['monday_top_3']
@@ -186,8 +202,11 @@ def search_evidence_route():
 
 @app.route("/api/export-answers")
 def export_answers_route():
-    answers = export_answers_json()
-    return jsonify({"status": "success", "message": "Exported to answers_working.json", "client_count": answers["client_count"]})
+    answers = build_answers_json()
+    response = jsonify(answers)
+    response.headers["Content-Disposition"] = 'attachment; filename="answers.json"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 @app.route("/api/classifications")
 def get_classifications_route():
@@ -208,6 +227,166 @@ def reprocess_classifications_route():
     limit = data.get("limit")
     result = reprocess_fallback_classifications(limit=limit)
     return jsonify(result)
+
+# =====================================================================
+# OWNER AUTHENTICATION & SESSION MANAGEMENT
+# =====================================================================
+@app.route("/api/auth/owner-status")
+def owner_status_route():
+    auth = is_owner_authorized()
+    return jsonify({
+        "status": "success",
+        "is_authorized": auth,
+        "is_owner_authorized": auth
+    })
+
+@app.route("/api/auth/owner-session", methods=["POST"])
+def owner_session_route():
+    data = request.get_json(silent=True) or {}
+    pin = data.get("pin") or data.get("owner_pin") or request.form.get("pin")
+    if authorize_owner_session(pin):
+        return jsonify({"status": "success", "message": "Owner session authorized", "is_authorized": True, "is_owner_authorized": True})
+    return jsonify({"status": "error", "message": "Invalid Owner PIN/Passcode", "is_authorized": False, "is_owner_authorized": False}), 401
+
+@app.route("/api/auth/owner-logout", methods=["POST"])
+def owner_logout_route():
+    clear_owner_session()
+    return jsonify({"status": "success", "message": "Owner session cleared", "is_authorized": False, "is_owner_authorized": False})
+
+# =====================================================================
+# DATA MANAGEMENT: RECORDS CRUD, ARCHIVE, RESTORE, SOFT-DELETE
+# =====================================================================
+@app.route("/api/manage/records")
+def manage_records_route():
+    table = request.args.get("table", "clients")
+    filter_status = request.args.get("status", "all")
+    search = request.args.get("search", "")
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
+
+    try:
+        res = get_records(table, filter_status=filter_status, search=search, limit=limit, offset=offset)
+        return jsonify({"status": "success", **res})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route("/api/manage/records/<table_name>/<record_id>", methods=["GET", "PUT", "DELETE"])
+def manage_single_record_route(table_name, record_id):
+    if request.method == "GET":
+        rec = get_record(table_name, record_id)
+        if not rec:
+            return jsonify({"status": "error", "message": "Record not found"}), 404
+        return jsonify({"status": "success", "record": rec})
+
+    elif request.method == "PUT":
+        data = request.get_json(force=True) or {}
+        res = update_record(table_name, record_id, data)
+        if res.get("status") == "error":
+            return jsonify(res), 400
+        return jsonify(res)
+
+    elif request.method == "DELETE":
+        if not is_owner_authorized():
+            return jsonify({
+                "status": "error",
+                "message": "Owner authorization required to delete records. Please enter your Owner PIN."
+            }), 403
+        res = soft_delete_record(table_name, record_id)
+        return jsonify(res)
+
+@app.route("/api/manage/records/<table_name>/<record_id>/archive", methods=["POST"])
+def manage_archive_record_route(table_name, record_id):
+    res = archive_record(table_name, record_id)
+    return jsonify(res)
+
+@app.route("/api/manage/records/<table_name>/<record_id>/restore", methods=["POST"])
+def manage_restore_record_route(table_name, record_id):
+    res = restore_record(table_name, record_id)
+    return jsonify(res)
+
+@app.route("/api/manage/records/<table_name>/<record_id>/impact")
+def manage_record_impact_route(table_name, record_id):
+    res = calculate_impact(table_name, record_id)
+    return jsonify(res)
+
+# =====================================================================
+# DATA MANAGEMENT: UPLOADS & REVERSAL
+# =====================================================================
+@app.route("/api/manage/uploads")
+def manage_uploads_route():
+    uploads = get_upload_history()
+    return jsonify({"status": "success", "uploads": uploads})
+
+@app.route("/api/manage/uploads/<int:upload_id>/impact")
+def manage_upload_impact_route(upload_id):
+    impact = calculate_upload_reversal_impact(upload_id)
+    return jsonify(impact)
+
+@app.route("/api/manage/uploads/<int:upload_id>/revert", methods=["POST"])
+def manage_upload_revert_route(upload_id):
+    if not is_owner_authorized():
+        return jsonify({
+            "status": "error",
+            "message": "Owner authorization required to reverse an upload dataset. Please enter your Owner PIN."
+        }), 403
+    res = revert_upload(upload_id)
+    if res.get("status") == "error":
+        return jsonify(res), 400
+    return jsonify(res)
+
+# =====================================================================
+# DATA MANAGEMENT: DATASET RESET & AUDIT LOGS
+# =====================================================================
+@app.route("/api/manage/reset/preview")
+def manage_reset_preview_route():
+    preview = get_reset_preview()
+    return jsonify({"status": "success", "preview": preview})
+
+@app.route("/api/manage/reset", methods=["POST"])
+def manage_reset_route():
+    if not is_owner_authorized():
+        return jsonify({
+            "status": "error",
+            "message": "Owner authorization required to reset business dataset. Please enter your Owner PIN."
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    phrase = data.get("confirmation_phrase") or data.get("phrase", "")
+    res = execute_reset(phrase)
+    if res.get("status") == "error":
+        return jsonify(res), 400
+    return jsonify(res)
+
+@app.route("/api/manage/audit-logs")
+def manage_audit_logs_route():
+    limit = int(request.args.get("limit", 100))
+    logs = get_audit_logs(limit)
+    return jsonify({"status": "success", "audit_logs": logs, "logs": logs})
+
+# =====================================================================
+# OWNER REPORTS: MODE B DYNAMIC BUSINESS REPORT
+# =====================================================================
+@app.route("/api/reports/business-report")
+def business_report_json_route():
+    report = generate_business_report()
+    fmt = request.args.get("format", "json").lower()
+    if fmt == "html":
+        html_content = render_report_html(report)
+        return html_content, 200, {"Content-Type": "text/html; charset=utf-8"}
+    return jsonify(report)
+
+@app.route("/api/reports/business-report.json")
+def business_report_download_route():
+    report = generate_business_report()
+    resp = make_response(jsonify(report))
+    resp.headers["Content-Disposition"] = "attachment; filename=axeom_business_report.json"
+    return resp
+
+@app.route("/api/reports/business-report.html")
+def business_report_html_route():
+    report = generate_business_report()
+    html_content = render_report_html(report)
+    return html_content, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

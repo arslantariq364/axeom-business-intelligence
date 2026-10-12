@@ -419,3 +419,64 @@ def resolve_client(name=None, email=None, phone=None):
             return matched
 
     return None
+
+
+def get_canonical_clients(include_archived=True, include_deleted=False):
+    """
+    Returns clients from database with their aliases and contacts.
+    If database query fails or table is uninitialized, returns CANONICAL_CLIENTS.
+    """
+    try:
+        from services.db import get_db
+        conn = get_db()
+        cur = conn.cursor()
+        query = "SELECT * FROM clients WHERE 1=1"
+        if not include_deleted:
+            query += " AND (deleted_at IS NULL OR deleted_at = '')"
+        if not include_archived:
+            query += " AND (is_archived IS NULL OR is_archived = 0)"
+        query += " ORDER BY id ASC"
+        cur.execute(query)
+        rows = cur.fetchall()
+        conn.close()
+        if rows:
+            import json
+            result = []
+            for r in rows:
+                rd = dict(r)
+                emails = rd.get("emails")
+                if isinstance(emails, str):
+                    try:
+                        emails = json.loads(emails)
+                    except Exception:
+                        emails = [emails] if emails else []
+                phones = rd.get("phones")
+                if isinstance(phones, str):
+                    try:
+                        phones = json.loads(phones)
+                    except Exception:
+                        phones = [phones] if phones else []
+                aliases = rd.get("payer_aliases")
+                if isinstance(aliases, str):
+                    try:
+                        aliases = json.loads(aliases)
+                    except Exception:
+                        aliases = [aliases] if aliases else []
+
+                result.append({
+                    "id": rd.get("id"),
+                    "canonical_name": rd.get("canonical_name"),
+                    "primary_contact": rd.get("primary_contact", ""),
+                    "emails": emails or [],
+                    "phones": phones or [],
+                    "status": rd.get("status", "Active"),
+                    "payer_aliases": aliases or [rd.get("canonical_name")],
+                    "evidence": rd.get("notes", ""),
+                    "is_archived": int(rd.get("is_archived") or 0),
+                    "deleted_at": rd.get("deleted_at")
+                })
+            return result
+    except Exception:
+        pass
+
+    return CANONICAL_CLIENTS
