@@ -148,6 +148,10 @@ class PostgresCursorWrapper:
     def description(self):
         return self._cursor.description
 
+    @property
+    def lastrowid(self):
+        return getattr(self, "_lastrowid", None)
+
 
 class PostgresConnectionWrapper:
     """Connection wrapper ensuring transaction and cursor compatibility."""

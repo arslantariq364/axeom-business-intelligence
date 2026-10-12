@@ -55,8 +55,9 @@ async function runBrowserQASuite() {
     // -----------------------------------------------------------------
     // TEST 1: DASHBOARD LOAD & HERO CARD (1366x768)
     // -----------------------------------------------------------------
-    console.log('[Test 1] Navigating to http://127.0.0.1:5050...');
-    await page.goto('http://127.0.0.1:5050', { waitUntil: 'networkidle' });
+    const TARGET_URL = process.env.TARGET_URL || 'http://127.0.0.1:5050';
+    console.log(`[Test 1] Navigating to ${TARGET_URL}...`);
+    await page.goto(TARGET_URL, { waitUntil: 'networkidle' });
     
     const title = await page.title();
     console.log(`  Page title: "${title}"`);
@@ -199,7 +200,7 @@ async function runBrowserQASuite() {
     for (const vp of viewports) {
       console.log(`  Testing viewport: ${vp.name} (${vp.width}x${vp.height})...`);
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('http://127.0.0.1:5050/#today', { waitUntil: 'networkidle' });
+      await page.goto(`${TARGET_URL}/#today`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
 
       // Verify 10-second rule: is the hero action prominent and readable?
