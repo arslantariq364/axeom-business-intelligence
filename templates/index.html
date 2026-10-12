@@ -30,25 +30,25 @@
           <button class="nav-item active" data-view-target="today">
             <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
             Today
-            <span class="nav-badge lime">Action #1</span>
+            <span class="nav-badge lime" id="nav-action-badge">Next action</span>
           </button>
 
           <button class="nav-item" data-view-target="money">
             <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
             Money & Invoices
-            <span class="nav-badge warning">$9.2k Due</span>
+            <span class="nav-badge warning" id="nav-money-badge">Loading</span>
           </button>
 
           <button class="nav-item" data-view-target="clients">
             <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
             Clients Directory
-            <span class="nav-badge">29</span>
+            <span class="nav-badge" id="nav-client-badge">Loading</span>
           </button>
 
           <button class="nav-item" data-view-target="requests">
             <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
             Requests & Leads
-            <span class="nav-badge danger">33 Lost</span>
+            <span class="nav-badge danger" id="nav-requests-badge">Loading</span>
           </button>
 
           <button class="nav-item" data-view-target="history">
@@ -76,7 +76,7 @@
             6 Oct 2026
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" style="width: 100%;" onclick="fetch('/api/export-answers').then(r=>r.json()).then(d=>alert(d.message))">
+        <button class="btn btn-secondary btn-sm" style="width: 100%;" onclick="downloadAnswersJson()">
           Export answers.json
         </button>
       </div>
@@ -88,7 +88,7 @@
       <!-- Compact Header (Today Screen) -->
       <div class="top-bar">
         <div class="user-greeting">
-          <h2>AXEOM • Today</h2>
+          <h2 id="active-view-heading">AXEOM • Today</h2>
           <p>Axeom Studio Operations • Business data as of <strong>6 Oct 2026</strong></p>
         </div>
         <div class="top-bar-actions">
@@ -96,7 +96,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add new files
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="fetch('/api/export-answers').then(r=>r.json()).then(d=>alert('Exported working answers successfully!'))">
+          <button class="btn btn-secondary btn-sm" onclick="downloadAnswersJson()">
             Export JSON
           </button>
         </div>
@@ -127,7 +127,7 @@
         <div class="table-header-box" style="margin-bottom: 18px; background: var(--surface); border-radius: var(--radius-xl); border: 1px solid var(--card-border);">
           <div>
             <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--text-main);">Canonical Client Directory</h3>
-            <p style="color: var(--text-muted); font-size: 0.82rem;">29 Verified Real Clients + 1 Third-Party Agency Payer</p>
+            <p style="color: var(--text-muted); font-size: 0.82rem;"><span id="client-directory-summary">Loading current client directory...</span></p>
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <div class="search-box">
@@ -135,7 +135,7 @@
               <input type="text" id="client-search-input" class="search-input" placeholder="Search client name, alias, contact..." oninput="renderClientsView()">
             </div>
             <select id="client-filter-select" class="sub-tab-btn" style="outline: none;" onchange="renderClientsView()">
-              <option value="all">All Clients (29)</option>
+              <option value="all">All Clients</option>
               <option value="retainer">Retainers Only</option>
               <option value="overdue">With Overdue Balances</option>
               <option value="churned">Churned</option>
@@ -151,10 +151,10 @@
       <!-- VIEW 3: MONEY -->
       <section id="view-money" class="app-view">
         <div class="sub-tabs-bar" id="money-sub-tabs">
-          <button class="sub-tab-btn active" data-subtab="overdue" onclick="setMoneySubTab('overdue')">Overdue Payments ($9,250)</button>
-          <button class="sub-tab-btn" data-subtab="we_owe" onclick="setMoneySubTab('we_owe')">Refunds & Credits Owed ($2,400)</button>
-          <button class="sub-tab-btn" data-subtab="never_billed" onclick="setMoneySubTab('never_billed')">Uninvoiced Work ($2,950)</button>
-          <button class="sub-tab-btn" data-subtab="discrepancies" onclick="setMoneySubTab('discrepancies')">Billing Tool Software Errors (6)</button>
+          <button class="sub-tab-btn active" data-subtab="overdue" onclick="setMoneySubTab('overdue')">Overdue Payments</button>
+          <button class="sub-tab-btn" data-subtab="we_owe" onclick="setMoneySubTab('we_owe')">Refunds & Credits Owed</button>
+          <button class="sub-tab-btn" data-subtab="never_billed" onclick="setMoneySubTab('never_billed')">Uninvoiced Work</button>
+          <button class="sub-tab-btn" data-subtab="discrepancies" onclick="setMoneySubTab('discrepancies')">Billing Tool Errors</button>
           <button class="sub-tab-btn" data-subtab="uncertain" onclick="setMoneySubTab('uncertain')">Uncertain Allocations & Payer Rules</button>
         </div>
 
@@ -166,9 +166,9 @@
       <!-- VIEW 4: REQUESTS & LEADS -->
       <section id="view-requests" class="app-view">
         <div class="sub-tabs-bar" id="requests-sub-tabs">
-          <button class="sub-tab-btn active" data-subtab="lost" onclick="setReqSubTab('lost')">33 Lost Edit Requests</button>
+          <button class="sub-tab-btn active" data-subtab="lost" onclick="setReqSubTab('lost')">Lost Edit Requests</button>
           <button class="sub-tab-btn" data-subtab="causes" onclick="setReqSubTab('causes')">Root Causes & Deterioration (Aug 2026)</button>
-          <button class="sub-tab-btn" data-subtab="leads" onclick="setReqSubTab('leads')">22 Unanswered Leads</button>
+          <button class="sub-tab-btn" data-subtab="leads" onclick="setReqSubTab('leads')">Unanswered Leads</button>
           <button class="sub-tab-btn" data-subtab="intent" onclick="setReqSubTab('intent')">Message Intent Classifier (Fallback Rule • Jev Pending)</button>
         </div>
 
@@ -220,10 +220,10 @@
       <!-- VIEW 7: ADD NEW FILES -->
       <section id="view-upload" class="app-view">
         <div class="table-card" style="padding: 24px;">
-          <h3 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Idempotent File Ingestion</h3>
+          <h3 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Add or update business files</h3>
           <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; line-height: 1.5;">
             Upload new exports or updated CSV/TXT files. The system automatically inspects headers, detects schema roles,
-            validates row integrity, stages changes, and recalculates all business findings into SQLite.
+            checks each row, and updates supported reports. Existing records with matching IDs may be updated. Keep a backup of the original files.
           </p>
 
           <div id="upload-dropzone" class="upload-dropzone">
