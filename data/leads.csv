@@ -1,0 +1,100 @@
+lead_id,created,name,business,email,phone,source,first_reply,status
+L001,2026-03-26 18:23,David Kim,Northpoint Church,media@northpointdfw.org,972-555-0112,Website form,2026-03-27,Won
+L002,2026-04-01 19:34,Tasha Green,Hustle & Heart Podcast,tasha@hustleandheart.fm,469-555-0157,Instagram,2026-04-03,Won
+L003,2026-04-04 14:23,Will Carter,Cedar and Stone,will@cedarstone.build,817-555-0122,Google,2026-04-05,Won
+L004,2026-04-04 10:56,Ethan Cole,DFW Founders,ethan@dfwfounders.fm,214-555-0118,Google,2026-04-04,Won
+L005,2026-04-04 14:26,Marcus Lee,Lee Coffee,marcus@leecoffee.com,972-555-0186,Meta ad,2026-04-04,Lost
+L006,2026-04-05 08:18,Sarah Khan,Dr. Sarah Khan,sarah@khandental.com,214-555-0141,Referral,2026-04-07,Won
+L007,2026-04-05 17:51,Derek Brooks,Brooks Insurance,derek@brooksinsurance.com,214-555-0192,Website form,2026-04-06,Lost
+L008,2026-04-08 21:44,Brian Reyes,Reyes HVAC,brian@reyeshvac.com,817-555-0197,Website form,2026-04-09,Lost
+L009,2026-04-10 21:38,Rachel Lee,Lee Tax Services,rachel@leetaxservices.com,469-555-0119,Website form,2026-04-10,Lost
+L010,2026-04-10 20:01,Marcus Owens,Owens Insurance,marcus@owensinsurance.com,469-555-0138,Google,2026-04-11,Lost
+L011,2026-04-11 19:54,Paul Grant,Meridian Wealth,pgrant@meridianwp.com,214-555-0182,LinkedIn,2026-04-11,Won
+L012,2026-04-11 08:14,Brian Lee,Lee Law Office,brian@leelawoffice.com,214-555-0190,Instagram,2026-04-12,Lost
+L013,2026-04-12 17:12,Mike Delgado,Mikes Roofing,mike@mikesroofingtx.com,469-555-0172,Meta ad,2026-04-14,Won
+L014,2026-04-13 17:55,Tom Ford,Ford Coffee,tom@fordcoffee.com,214-555-0156,Meta ad,2026-04-14,Lost
+L015,2026-04-13 17:05,Leah Brooks,,leahbrooks27@gmail.com,469-555-0169,Website form,2026-04-21,Lost
+L016,2026-04-16 14:24,Kevin Lee,Lee Roofing,kevin@leeroofing.com,214-555-0101,Instagram,2026-04-16,Lost
+L017,2026-04-17 08:41,Priya Shah,Bloom Med Spa,priya@bloommedspa.com,972-555-0110,Instagram,2026-04-17,Won
+L018,2026-04-17 15:17,Sofia Ramirez,Luna Bridal,sofia@lunabridal.com,214-555-0135,Instagram,2026-04-19,Won
+L019,2026-04-19 13:33,Mike Torres,Torres Law Firm,mtorres@torreslaw.com,214-555-0188,Google,2026-04-21,Won
+L020,2026-04-21 08:04,Mia Kim,Kim Law Office,mia@kimlawoffice.com,469-555-0175,Instagram,,New
+L021,2026-04-23 14:07,Grace Park,Park HVAC,grace@parkhvac.com,214-555-0123,Instagram,2026-04-28,Lost
+L022,2026-05-01 21:16,Kim Lee,Apex PT,klee@apexptdallas.com,972-555-0144,Website form,2026-05-02,Won
+L023,2026-05-01 20:05,SEO Services,,seo@rank1seo.biz,,Website form,,New
+L024,2026-05-02 10:30,Nadia Hassan,Glow Aesthetic,nadia@glowaesthetics.co,972-555-0153,Instagram,2026-05-02,Won
+L025,2026-05-04 18:10,Wes Nguyen,Nguyen Dental Care,wes@nguyendentalcare.com,817-555-0199,Google,2026-05-04,Lost
+L026,2026-05-05 19:00,Rosa Haddad,Haddad Salon,rosa@haddadsalon.com,972-555-0111,Google,2026-05-13,Lost
+L027,2026-05-06 09:40,Jordan Reed,Elevate Athletics,jordan@elevatefit.co,469-555-0133,Meta ad,2026-05-08,Won
+L028,2026-05-08 08:06,Tom Lee,Lee Bakery,tom@leebakery.com,469-555-0181,Meta ad,2026-05-08,Lost
+L029,2026-05-10 16:55,Andre Jackson,Crown Barbershop,andre@crownbarbers.com,214-555-0103,Instagram,2026-05-10,Won
+L030,2026-05-11 15:24,Kevin Brooks,Brooks Salon,kevin@brookssalon.com,214-555-0196,Meta ad,2026-05-16,Lost
+L031,2026-05-12 12:33,Ray Park,,raypark35@gmail.com,817-555-0101,LinkedIn,2026-05-12,Lost
+L032,2026-05-13 20:04,Raj Patel,Patel Insurance Group,raj@patelinsures.com,214-555-0195,Meta ad,2026-05-14,Won
+L033,2026-05-16 09:54,Brian Becker,Becker Landscaping,brian@beckerlandscaping.com,817-555-0144,Meta ad,2026-05-18,Lost
+L034,2026-05-16 19:06,Mia Kim,Kim Tax Services,mia@kimtaxservices.com,469-555-0153,LinkedIn,,New
+L035,2026-05-22 10:42,Marcus Hill,Hill Bakery,marcus@hillbakery.com,214-555-0196,Meta ad,,New
+L036,2026-05-23 15:30,Hannah Brooks,Oaklane Dental,hbrooks@oaklanedental.com,469-555-0108,Referral,2026-05-23,Won
+L037,2026-05-28 16:16,Dana Brooks,Lone Star Realty,dana@lonestarrealty.com,214-555-0164,Referral,2026-05-28,Won
+L038,2026-05-28 12:53,Kelsey Moore,Brightline Marketing,kelsey@brightlinemktg.com,214-555-0170,Referral,2026-05-28,Won
+L039,2026-05-28 08:03,Ivy Becker,Becker Realty,ivy@beckerrealty.com,817-555-0101,Google,2026-05-28,Lost
+L040,2026-06-01 17:41,Sarah Khan,Khan Dental,sarah@khandental.com,214-555-0141,Website form,2026-06-01,Won
+L041,2026-06-03 08:12,Felix Hill,Hill Tax Services,felix@hilltaxservices.com,817-555-0121,Meta ad,2026-06-04,Lost
+L042,2026-06-04 11:26,Mia Lee,,mialee45@gmail.com,972-555-0177,Meta ad,2026-06-09,Lost
+L043,2026-06-07 21:22,Grace Diaz,Diaz Chiropractic,grace@diazchiropractic.com,817-555-0111,Google,2026-06-09,Lost
+L044,2026-06-07 20:59,test test,,test@test.com,,Website form,,New
+L045,2026-06-09 08:18,Aisha Khan,Khan Family Law,info@khanfamilylaw.com,214-555-0150,Google,2026-06-11,Won
+L046,2026-06-09 10:26,Bella Haddad,Haddad Pediatrics,bella@haddadpediatrics.com,469-555-0132,Instagram,2026-06-11,Lost
+L047,2026-06-11 14:33,Leah Park,Park Auto Group,leah@parkautogroup.com,469-555-0122,LinkedIn,2026-06-12,Lost
+L048,2026-06-12 18:09,Owen Brooks,Brooks Coffee,owen@brookscoffee.com,469-555-0168,Meta ad,,New
+L049,2026-06-12 15:46,Brian Owens,Owens Insurance,brian@owensinsurance.com,214-555-0176,LinkedIn,2026-06-14,Lost
+L050,2026-06-16 13:45,Tom Reyes,Reyes Landscaping,tom@reyeslandscaping.com,469-555-0121,Meta ad,2026-06-19,Lost
+L051,2026-06-18 10:11,Lena Ortiz,Brew Lab,lena@thebrewlab.coffee,469-555-0116,Website form,2026-06-18,Won
+L052,2026-06-23 11:36,Omar Becker,,omarbecker88@gmail.com,469-555-0106,LinkedIn,2026-06-25,Lost
+L053,2026-06-26 13:22,Kevin Bell,,kevinbell65@gmail.com,972-555-0171,Meta ad,2026-07-01,Lost
+L054,2026-06-27 19:05,Nate Kim,Kim Bakery,nate@kimbakery.com,469-555-0124,Website form,2026-06-30,Lost
+L055,2026-06-27 14:56,Omar Nguyen,Nguyen Salon,omar@nguyensalon.com,817-555-0137,Meta ad,2026-06-27,Lost
+L056,2026-07-03 09:59,Chris Kim,Kim Pediatrics,chris@kimpediatrics.com,214-555-0131,LinkedIn,2026-07-04,Lost
+L057,2026-07-04 08:23,Marcus Webb,Ironclad Gym,marcus@ironcladgym.com,469-555-0126,Meta ad,2026-07-06,Won
+L058,2026-07-06 11:25,Tara Haddad,Haddad Coffee,tara@haddadcoffee.com,469-555-0105,Meta ad,2026-07-11,Lost
+L059,2026-07-07 19:13,Maria Lopez,Sage Family Therapy,mlopez@sagefamilytherapy.com,972-555-0171,Website form,2026-07-08,Won
+L060,2026-07-10 13:46,Imran Khan,Khan's Auto Spa,imran@khansautospa.com,972-555-0161,Instagram,2026-07-10,Won
+L061,2026-07-12 21:53,Jen Walsh,Harbor Coffee,jen@harborcoffee.com,469-555-0149,Referral,2026-07-14,Won
+L062,2026-07-14 13:04,asdf,,a@a.co,,Website form,,New
+L063,2026-07-17 13:47,Leah Bell,,leahbell79@gmail.com,817-555-0175,Instagram,2026-07-25,Lost
+L064,2026-07-20 08:32,Amanda Becker,,amandabecker83@gmail.com,817-555-0160,Google,2026-07-22,Lost
+L065,2026-07-22 18:52,Felix Reyes,Reyes Salon,felix@reyessalon.com,817-555-0133,Meta ad,,New
+L066,2026-07-22 11:17,Bella Reyes,Reyes Dental Care,bella@reyesdentalcare.com,214-555-0103,Meta ad,2026-07-30,Lost
+L067,2026-07-25 09:27,Rachel Diaz,,racheldiaz58@gmail.com,972-555-0160,LinkedIn,,New
+L068,2026-07-30 10:40,Priya Shah,Bloom Med Spa Frisco,frisco@bloommedspa.com,972-555-0110,Website form,2026-07-31,New
+L069,2026-07-31 08:00,Greg Whitfield,Lonestar Realty Group,greg@lonestarrg.com,817-555-0119,Meta ad,2026-08-02,Won
+L070,2026-08-01 19:39,Tony Russo,Prime Roofing,tony@primeroofingco.com,817-555-0131,Meta ad,2026-08-03,Won
+L071,2026-08-03 13:59,Jordan Reed,Elevate Athletics,jordan@elevateathletics.com,469-555-0133,Website form,,New
+L072,2026-08-05 16:09,Leah Haddad,Haddad Yoga Studio,leah@haddadyogastudio.com,817-555-0176,Meta ad,2026-08-06,Lost
+L073,2026-08-08 11:32,Owen Shaw,Shaw Fitness,owen@shawfitness.com,817-555-0106,LinkedIn,2026-08-16,Lost
+L074,2026-08-10 11:18,Tom Cruz,Cruz HVAC,tom@cruzhvac.com,214-555-0155,Instagram,2026-08-11,Lost
+L075,2026-08-11 16:02,Jade Hill,Hill HVAC,jade@hillhvac.com,817-555-0116,Instagram,,New
+L076,2026-08-15 10:43,Victor Brooks,Brooks Roofing,victor@brooksroofing.com,972-555-0190,Google,,New
+L077,2026-08-16 12:44,Omar Shaw,Shaw Auto Group,omar@shawautogroup.com,817-555-0112,Referral,2026-08-21,Lost
+L078,2026-08-20 15:23,Free followers,,promo@fastfollowers.io,,Website form,,New
+L079,2026-08-27 15:32,Angela Price,TLC Home Care,angela@tlchomecare.com,214-555-0187,Meta ad,2026-08-28,Won
+L080,2026-08-30 14:33,Jade Haddad,Haddad Family Dentistry,jade@haddadfamilydentistry.com,817-555-0137,Google,,New
+L081,2026-08-31 19:01,Grace Lee,Lee Salon,grace@leesalon.com,972-555-0169,Google,2026-09-01,Talking
+L082,2026-09-01 11:27,Samir Hill,Hill Med Spa,samir@hillmedspa.com,469-555-0173,LinkedIn,,New
+L083,2026-09-03 20:58,Tasha Green,,tasha.green.mail@gmail.com,469-555-0157,Website form,,New
+L084,2026-09-03 10:15,Ivy Becker,Becker Plumbing,ivy@beckerplumbing.com,469-555-0138,Google,,New
+L085,2026-09-07 13:45,Zoe Nguyen,,zoenguyen33@gmail.com,469-555-0194,Instagram,2026-09-10,Lost
+L086,2026-09-09 11:13,Ivy Cruz,Cruz Bakery,ivy@cruzbakery.com,817-555-0191,Website form,2026-09-09,Talking
+L087,2026-09-10 19:24,Nate Reyes,Reyes Pediatrics,nate@reyespediatrics.com,214-555-0164,Instagram,,New
+L088,2026-09-12 16:45,Omar Haddad,Haddad Auto Group,omar@haddadauto.com,214-555-0139,Referral,,New
+L089,2026-09-14 14:13,Brian Owens,,brianowens38@gmail.com,214-555-0171,LinkedIn,2026-09-15,Lost
+L090,2026-09-14 14:27,Rachel Bell,Bell Plumbing,rachel@bellplumbing.com,469-555-0146,Meta ad,,New
+L091,2026-09-15 09:50,Brian Reyes,Reyes Yoga Studio,brian@reyesyogastudio.com,817-555-0129,Meta ad,2026-09-23,Lost
+L092,2026-09-21 19:42,Kara Hill,Hill Tax Services,kara@hilltaxservices.com,214-555-0130,Meta ad,2026-09-22,Lost
+L093,2026-09-22 19:40,Rosa Kim,Kim Tax Services,rosa@kimtaxservices.com,972-555-0117,Meta ad,2026-09-22,Talking
+L094,2026-09-23 16:24,Victor Reyes,Reyes Family Dentistry,victor@reyesfamilydentistry.com,972-555-0190,Google,2026-09-23,Talking
+L095,2026-09-28 17:19,Amanda Haddad,Haddad Pet Grooming,amanda@haddadpetgrooming.com,972-555-0118,Instagram,2026-09-29,Talking
+L096,2026-09-29 11:09,Jess Owens,Owens Salon,jess@owenssalon.com,817-555-0108,LinkedIn,2026-10-07,Lost
+L097,2026-09-30 13:17,Nina Patel,Patel Insurance Group,nina@patelinsures.com,214-555-0196,Website form,,New
+L098,2026-09-30 08:18,Bella Diaz,Diaz Realty,bella@diazrealty.com,972-555-0127,Website form,,New
+L099,2026-10-02 09:40,Rosa Nguyen,,rosanguyen61@gmail.com,817-555-0181,Instagram,2026-10-04,Lost

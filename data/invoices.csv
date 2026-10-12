@@ -1,0 +1,153 @@
+invoice_no,bill_to,email,issued,due,amount,status,memo
+INV-1001,Northpoint Church,media@northpointdfw.org,2026-04-03,2026-04-17,300.00,paid,Podcast Studio 2hr 4/3
+INV-1002,Tasha Green,tasha@hustleandheart.fm,2026-04-06,2026-04-20,300.00,paid,Podcast Studio 2hr 4/6
+INV-1003,Dr. Sarah Khan,sarah@khandental.com,2026-04-08,2026-04-22,1500.00,paid,B003 Content Day
+INV-1004,DFW Founders,ethan@dfwfounders.fm,2026-04-12,2026-04-26,550.00,paid,B004 Podcast Studio 4hr
+INV-1005,H&H Podcast,tasha@hustleandheart.fm,2026-04-13,2026-04-27,300.00,paid,B006 Podcast Studio 2hr
+INV-1006,Cedar & Stone Builders,will@cedarstone.build,2026-04-15,2026-04-29,1500.00,paid,Content Day 4/13
+INV-1007,NorthPoint Church,media@northpointdfw.org,2026-04-15,2026-04-29,300.00,paid,B007 Podcast Studio 2hr
+INV-1008,Mike's Roofing,mike@mikesroofingtx.com,2026-04-15,2026-04-29,900.00,paid,B008 Reels Pack
+INV-1009,Bloom Med Spa - Frisco,priya@bloommedspa.com,2026-04-20,2026-05-04,1500.00,paid,Content Day 4/20
+INV-1010,H&H Podcast,tasha@hustleandheart.fm,2026-04-20,2026-05-04,300.00,paid,Podcast Studio 2hr 4/20
+INV-1011,NorthPoint Church,media@northpointdfw.org,2026-04-21,2026-05-05,300.00,paid,Podcast Studio 2hr 4/20
+INV-1012,Ethan Cole,ethan@dfwfounders.fm,2026-04-24,2026-05-08,550.00,paid,Podcast Studio 4hr 4/23
+INV-1013,Luna Bridal,sofia@lunabridal.com,2026-04-27,2026-05-11,900.00,paid,Reels Pack 4/27
+INV-1014,Hustle & Heart,tasha@hustleandheart.fm,2026-04-28,2026-05-12,300.00,paid,Podcast Studio 2hr 4/28
+INV-1015,NorthPoint Media Team,media@northpointdfw.org,2026-04-30,2026-05-14,300.00,paid,
+INV-1016,Meridian WP,pgrant@meridianwp.com,2026-05-01,2026-05-15,2500.00,paid,Monthly retainer May
+INV-1017,NorthPoint Church,media@northpointdfw.org,2026-05-07,2026-05-21,240.00,paid,Podcast Studio 2hr 5/6
+INV-1018,Tasha Green,tasha@hustleandheart.fm,2026-05-08,2026-05-22,300.00,paid,B018 Podcast Studio 2hr
+INV-1019,Elevate Fit,jordan@elevatefit.co,2026-05-11,2026-05-25,900.00,paid,Reels Pack 5/11
+INV-1020,DFW Founders,ethan@dfwfounders.fm,2026-05-12,2026-05-26,550.00,paid,B020 Podcast Studio 4hr
+INV-1021,Mike Delgado,mike@mikesroofingtx.com,2026-05-13,2026-05-27,900.00,paid,Reels Pack 5/11
+INV-1022,Hustle & Heart,tasha@hustleandheart.fm,2026-05-13,2026-05-27,300.00,paid,
+INV-1023,Dr. Sarah Khan,sarah@khandental.com,2026-05-13,2026-05-27,1500.00,paid,
+INV-1024,NorthPoint DFW,media@northpointdfw.org,2026-05-13,2026-05-27,240.00,paid,B027 Podcast Studio 2hr
+INV-1025,Glow Med,nadia@glowaesthetics.co,2026-05-16,2026-05-30,900.00,paid,Reels Pack 5/14
+INV-1026,Bloom,priya@bloommedspa.com,2026-05-20,2026-06-03,1500.00,paid,Content Day 5/19
+INV-1027,NorthPoint Media Team,media@northpointdfw.org,2026-05-21,2026-06-04,240.00,paid,B031 Podcast Studio 2hr
+INV-1028,Hustle & Heart,tasha@hustleandheart.fm,2026-05-22,2026-06-05,300.00,paid,B030 Podcast Studio 2hr
+INV-1029,Crown Barbers,andre@crownbarbers.com,2026-05-24,2026-06-07,900.00,paid,B032 Reels Pack
+INV-1030,Luna Bridal,sofia@lunabridal.com,2026-05-26,2026-06-09,900.00,paid,B033 Reels Pack
+INV-1031,Northpoint Church,media@northpointdfw.org,2026-05-27,2026-06-10,240.00,paid,Podcast Studio 2hr 5/26
+INV-1032,Dana Brooks,dana@lonestarrealty.com,2026-05-27,2026-06-10,1500.00,paid,Content Day 6/1
+INV-1033,DFW Founders Podcast,ethan@dfwfounders.fm,2026-05-28,2026-06-11,550.00,paid,Podcast Studio 4hr 5/27
+INV-1034,Hustle & Heart,tasha@hustleandheart.fm,2026-05-28,2026-06-11,300.00,paid,Podcast Studio 2hr 5/28
+INV-1035,NorthPoint Media Team,media@northpointdfw.org,2026-06-01,2026-06-15,240.00,paid,B040 Podcast Studio 2hr
+INV-1036,Torres Law Firm PLLC,mtorres@torreslaw.com,2026-06-01,2026-06-15,2500.00,paid,Monthly retainer June
+INV-1037,Patel Ins,raj@patelinsures.com,2026-06-01,2026-06-15,2500.00,paid,Monthly retainer June
+INV-1038,Apex Physical Therapy,klee@apexptdallas.com,2026-06-01,2026-06-15,2500.00,paid,Monthly retainer June
+INV-1039,Meridian Wealth,pgrant@meridianwp.com,2026-06-01,2026-06-15,2500.00,paid,Monthly retainer June
+INV-1040,Elevate Fit,jordan@elevatefit.co,2026-06-03,2026-06-17,900.00,paid,B038 Reels Pack
+INV-1041,Hannah Brooks DDS,hbrooks@oaklanedental.com,2026-06-05,2026-06-19,1500.00,paid,B041 Content Day
+INV-1042,Cedar and Stone,will@cedarstone.build,2026-06-09,2026-06-23,1500.00,paid,Content Day 6/8
+INV-1043,NorthPoint DFW,media@northpointdfw.org,2026-06-09,2026-06-23,240.00,paid,B047 Podcast Studio 2hr
+INV-1044,Hustle and Heart,tasha@hustleandheart.fm,2026-06-10,2026-06-24,300.00,paid,Podcast Studio 2hr 6/8
+INV-1045,Mikes Roofing,mike@mikesroofingtx.com,2026-06-10,2026-06-24,900.00,paid,B046 Reels Pack
+INV-1046,Brightline Marketing,kelsey@brightlinemktg.com,2026-06-10,2026-06-24,900.00,paid,B048 Reels Pack
+INV-1047,DFW Founders Podcast,ethan@dfwfounders.fm,2026-06-14,2026-06-28,550.00,paid,B051 Podcast Studio 4hr
+INV-1048,Bloom Medspa,priya@bloommedspa.com,2026-06-17,2026-07-01,1500.00,paid,B052 Content Day
+INV-1049,Aisha Khan,info@khanfamilylaw.com,2026-06-17,2026-07-01,900.00,paid,Reels Pack 6/15
+INV-1050,Tasha Green,tasha@hustleandheart.fm,2026-06-18,2026-07-02,300.00,paid,
+INV-1051,Khan Dental PLLC,sarah@khandental.com,2026-06-19,2026-07-03,1500.00,paid,B055 Content Day
+INV-1052,NorthPoint Church,media@northpointdfw.org,2026-06-19,2026-07-03,240.00,paid,
+INV-1053,Glow Aesthetic,nadia@glowaesthetics.co,2026-06-20,2026-07-04,900.00,paid,Reels Pack 6/18
+INV-1054,Elevate Fit,jordan@elevatefit.co,2026-06-23,2026-07-07,900.00,paid,B059 Reels Pack
+INV-1055,Hustle & Heart Podcast,tasha@hustleandheart.fm,2026-06-23,2026-07-07,300.00,paid,Podcast Studio 2hr 6/23
+INV-1056,Brew Lab,lena@thebrewlab.coffee,2026-06-24,2026-07-08,900.00,paid,
+INV-1057,Sofia Ramirez,sofia@lunabridal.com,2026-06-24,2026-07-08,900.00,paid,Reels Pack 6/22
+INV-1058,Ethan Cole,ethan@dfwfounders.fm,2026-06-26,2026-07-10,550.00,paid,B062 Podcast Studio 4hr
+INV-1059,NorthPoint Media Team,media@northpointdfw.org,2026-06-28,2026-07-12,240.00,paid,B063 Podcast Studio 2hr
+INV-1060,Hustle and Heart,tasha@hustleandheart.fm,2026-06-29,2026-07-13,300.00,paid,
+INV-1061,Brightline Marketing,kelsey@brightlinemktg.com,2026-07-01,2026-07-15,900.00,paid,
+INV-1062,Torres Law Firm PLLC,mtorres@torreslaw.com,2026-07-01,2026-07-15,2500.00,paid,Monthly retainer July
+INV-1063,Patel Insurance Group,raj@patelinsures.com,2026-07-01,2026-07-15,2500.00,paid,Monthly retainer July
+INV-1064,Apex PT,klee@apexptdallas.com,2026-07-01,2026-07-15,2500.00,paid,Monthly retainer July
+INV-1065,Meridian WP,pgrant@meridianwp.com,2026-07-01,2026-07-15,2500.00,paid,Monthly retainer July
+INV-1066,Crown Barbers,andre@crownbarbers.com,2026-07-04,2026-07-18,900.00,paid,
+INV-1067,NorthPoint DFW,media@northpointdfw.org,2026-07-06,2026-07-20,240.00,paid,B067 Podcast Studio 2hr
+INV-1068,Mike's Roofing,mike@mikesroofingtx.com,2026-07-08,2026-07-22,900.00,paid,B068 Reels Pack
+INV-1069,Ironclad Fitness,marcus@ironcladgym.com,2026-07-09,2026-07-23,900.00,paid,Reels Pack 7/8
+INV-1070,Dana Brooks,dana@lonestarrealty.com,2026-07-09,2026-07-23,1500.00,paid,B079 Content Day
+INV-1071,Hustle & Heart Podcast,tasha@hustleandheart.fm,2026-07-10,2026-07-24,300.00,paid,Podcast Studio 2hr 7/8
+INV-1072,Northpoint Church,media@northpointdfw.org,2026-07-14,2026-07-28,240.00,paid,Podcast Studio 2hr 7/13
+INV-1073,Bloom Medspa,priya@bloommedspa.com,2026-07-14,2026-07-28,1500.00,paid,B078 Content Day
+INV-1074,Sage Therapy,mlopez@sagefamilytherapy.com,2026-07-14,2026-07-28,1500.00,paid,Content Day 7/14
+INV-1075,DFW Founders,ethan@dfwfounders.fm,2026-07-15,2026-07-29,550.00,paid,B074 Podcast Studio 4hr
+INV-1076,Oak Lane Dental,hbrooks@oaklanedental.com,2026-07-15,2026-07-29,1500.00,paid,Content Day 7/13
+INV-1077,Elevate Fit,jordan@elevatefit.co,2026-07-15,2026-07-29,900.00,paid,
+INV-1078,Harbor Coffee,jen@harborcoffee.com,2026-07-16,2026-07-30,900.00,paid,Reels Pack 7/15
+INV-1079,Tasha Green,tasha@hustleandheart.fm,2026-07-17,2026-07-31,300.00,paid,
+INV-1080,Brightline Marketing,kelsey@brightlinemktg.com,2026-07-18,2026-08-01,900.00,paid,B084 Reels Pack
+INV-1081,Khan's Auto Spa,imran@khansautospa.com,2026-07-22,2026-08-05,900.00,paid,B085 Reels Pack
+INV-1082,Luna Bridal,sofia@lunabridal.com,2026-07-22,2026-08-05,900.00,paid,B086 Reels Pack
+INV-1083,Sarah Khan DDS,sarah@khandental.com,2026-07-23,2026-08-06,1500.00,paid,
+INV-1084,NorthPoint DFW,media@northpointdfw.org,2026-07-23,2026-08-06,240.00,paid,Podcast Studio 2hr 7/21
+INV-1085,Hustle & Heart,tasha@hustleandheart.fm,2026-07-26,2026-08-09,300.00,paid,Podcast Studio 2hr 7/24
+INV-1086,Glow Med,nadia@glowaesthetics.co,2026-07-27,2026-08-10,900.00,paid,B091 Reels Pack
+INV-1087,NorthPoint Media Team,media@northpointdfw.org,2026-07-28,2026-08-11,240.00,paid,B092 Podcast Studio 2hr
+INV-1088,DFW Founders Podcast,ethan@dfwfounders.fm,2026-07-29,2026-08-12,550.00,paid,
+INV-1089,Aisha Khan,info@khanfamilylaw.com,2026-07-31,2026-08-14,900.00,paid,B093 Reels Pack
+INV-1090,Torres Law Firm,mtorres@torreslaw.com,2026-08-01,2026-08-15,2500.00,paid,Monthly retainer August
+INV-1091,Patel Insurance Group,raj@patelinsures.com,2026-08-01,2026-08-15,2500.00,paid,Monthly retainer August
+INV-1092,Apex PT,klee@apexptdallas.com,2026-08-01,2026-08-15,2000.00,paid,Monthly retainer August
+INV-1093,Hustle & Heart Podcast,tasha@hustleandheart.fm,2026-08-03,2026-08-17,300.00,unpaid,B095 Podcast Studio 2hr
+INV-1094,Ironclad Gym,marcus@ironcladgym.com,2026-08-03,2026-08-17,900.00,paid,B096 Reels Pack
+INV-1095,Northpoint Church,media@northpointdfw.org,2026-08-03,2026-08-17,240.00,paid,B097 Podcast Studio 2hr
+INV-1096,The Brew Lab,lena@thebrewlab.coffee,2026-08-04,2026-08-18,900.00,paid,Reels Pack 8/3
+INV-1097,Mike's Roofing,mike@mikesroofingtx.com,2026-08-06,2026-08-20,900.00,unpaid,Reels Pack 8/4
+INV-1098,Tony Russo,tony@primeroofingco.com,2026-08-06,2026-08-20,900.00,paid,B099 Reels Pack
+INV-1099,Elevate Athletics,jordan@elevateathletics.com,2026-08-08,2026-08-22,900.00,paid,Reels Pack 8/6
+INV-1100,Brightline Marketing,kelsey@brightlinemktg.com,2026-08-08,2026-08-22,900.00,paid,B101 Reels Pack
+INV-1101,NorthPoint DFW,media@northpointdfw.org,2026-08-11,2026-08-25,240.00,paid,Podcast Studio 2hr 8/10
+INV-1102,DFW Founders Podcast,ethan@dfwfounders.fm,2026-08-12,2026-08-26,550.00,paid,B102 Podcast Studio 4hr
+INV-1103,H&H Podcast,tasha@hustleandheart.fm,2026-08-12,2026-08-26,300.00,unpaid,B103 Podcast Studio 2hr
+INV-1104,Lonestar Realty Group,greg@lonestarrg.com,2026-08-12,2026-08-26,1500.00,unpaid,Content Day 8/12
+INV-1105,Bloom Med Spa - Frisco,priya@bloommedspa.com,2026-08-13,2026-08-27,1500.00,paid,B106 Content Day
+INV-1106,Tasha Green,tasha@hustleandheart.fm,2026-08-18,2026-09-01,300.00,unpaid,Podcast Studio 2hr 8/17
+INV-1107,Luna Bridal,sofia@lunabridal.com,2026-08-19,2026-09-02,900.00,paid,Reels Pack 8/17
+INV-1108,Northpoint Church,media@northpointdfw.org,2026-08-19,2026-09-02,240.00,paid,Podcast Studio 2hr 8/19
+INV-1109,Lone Star Realty LLC,dana@lonestarrealty.com,2026-08-19,2026-09-02,1500.00,paid,Content Day 8/24
+INV-1110,Brightline Marketing,kelsey@brightlinemktg.com,2026-08-24,2026-09-07,900.00,paid,B113 Reels Pack
+INV-1111,Hannah Brooks DDS,hbrooks@oaklanedental.com,2026-08-24,2026-09-07,1500.00,paid,
+INV-1112,H&H Podcast,tasha@hustleandheart.fm,2026-08-26,2026-09-09,300.00,unpaid,B114 Podcast Studio 2hr
+INV-1113,Khan Dental,sarah@khandental.com,2026-08-26,2026-09-09,1500.00,paid,B117 Content Day
+INV-1114,Ethan Cole,ethan@dfwfounders.fm,2026-08-26,2026-09-09,550.00,paid,Podcast Studio 4hr 8/26
+INV-1115,Elevate Athletics,jordan@elevateathletics.com,2026-08-29,2026-09-12,900.00,paid,Reels Pack 8/27
+INV-1116,NorthPoint Media Team,media@northpointdfw.org,2026-08-29,2026-09-12,240.00,paid,B121 Podcast Studio 2hr
+INV-1117,Harbor Roasters,jen@harborcoffee.com,2026-08-30,2026-09-13,900.00,unpaid,
+INV-1118,Vega Auto Detailing,carlos.vega.detail@gmail.com,2026-09-01,2026-09-15,900.00,paid,B124 Reels Pack
+INV-1119,Mike's Roofing LLC,mike@mikesroofingtx.com,2026-09-01,2026-09-15,900.00,unpaid,
+INV-1120,Angela Price,angela@tlchomecare.com,2026-09-01,2026-09-15,1500.00,unpaid,B127 Content Day
+INV-1121,Torres,mtorres@torreslaw.com,2026-09-01,2026-09-15,2500.00,paid,Monthly retainer September
+INV-1122,Patel Ins,raj@patelinsures.com,2026-09-01,2026-09-15,2500.00,unpaid,Monthly retainer September
+INV-1123,Hustle & Heart,tasha@hustleandheart.fm,2026-09-02,2026-09-16,300.00,unpaid,B122 Podcast Studio 2hr
+INV-1124,Glow Aesthetic,nadia@glowaesthetics.co,2026-09-03,2026-09-17,900.00,paid,B125 Reels Pack
+INV-1125,Prime Roofing Co,tony@primeroofingco.com,2026-09-03,2026-09-17,900.00,partial,Reels Pack 9/3
+INV-1126,Northpoint Church,media@northpointdfw.org,2026-09-05,2026-09-19,240.00,paid,B128 Podcast Studio 2hr
+INV-1127,NorthPoint Media Team,media@northpointdfw.org,2026-09-09,2026-09-23,240.00,paid,Podcast Studio 2hr 9/9
+INV-1128,Bloom Med Spa - Plano,priya@bloommedspa.com,2026-09-10,2026-09-24,1500.00,paid,
+INV-1129,Khan Law,info@khanfamilylaw.com,2026-09-12,2026-09-26,900.00,paid,
+INV-1130,Brightline Marketing,kelsey@brightlinemktg.com,2026-09-15,2026-09-29,900.00,unpaid,Reels Pack 9/14
+INV-1131,Luna Bridal Boutique,sofia@lunabridal.com,2026-09-16,2026-09-30,900.00,paid,
+INV-1132,NorthPoint Church,media@northpointdfw.org,2026-09-16,2026-09-30,240.00,paid,Podcast Studio 2hr 9/15
+INV-1133,The Brew Lab,lena@thebrewlab.coffee,2026-09-17,2026-10-01,900.00,paid,B141 Reels Pack
+INV-1134,Elevate,jordan@elevateathletics.com,2026-09-19,2026-10-03,900.00,paid,Reels Pack 9/17
+INV-1135,Dana Brooks,dana@lonestarrealty.com,2026-09-19,2026-10-03,1500.00,paid,B148 Content Day
+INV-1136,Vega Auto,carlos.vega.detail@gmail.com,2026-09-21,2026-10-05,900.00,paid,Reels Pack 9/21
+INV-1137,Hustle & Heart,tasha@hustleandheart.fm,2026-09-23,2026-10-07,300.00,unpaid,B145 Podcast Studio 2hr
+INV-1138,DFW Founders Podcast,ethan@dfwfounders.fm,2026-09-24,2026-10-08,550.00,paid,Podcast Studio 4hr 9/23
+INV-1139,Northpoint Church,media@northpointdfw.org,2026-09-25,2026-10-09,240.00,paid,B149 Podcast Studio 2hr
+INV-1140,Hustle and Heart,tasha@hustleandheart.fm,2026-09-28,2026-10-12,300.00,unpaid,B151 Podcast Studio 2hr
+INV-1141,Brightline Marketing,kelsey@brightlinemktg.com,2026-09-29,2026-10-13,900.00,paid,B150 Reels Pack
+INV-1142,Sarah Khan DDS,sarah@khandental.com,2026-09-29,2026-10-13,1500.00,paid,B152 Content Day
+INV-1143,Dana Brooks,dana@lonestarrealty.com,2026-09-30,2026-10-14,1500.00,paid,
+INV-1144,Mike's Roofing,mike@mikesroofingtx.com,2026-10-01,2026-10-15,900.00,unpaid,B153 Reels Pack
+INV-1145,Ironclad Fitness,marcus@ironcladgym.com,2026-10-01,2026-10-15,900.00,unpaid,B154 Reels Pack
+INV-1146,Torres Law,mtorres@torreslaw.com,2026-10-01,2026-10-15,2500.00,unpaid,Monthly retainer October
+INV-1147,Raj Patel,raj@patelinsures.com,2026-10-01,2026-10-15,2500.00,unpaid,Monthly retainer October
+INV-1148,Apex Physical Therapy,klee@apexptdallas.com,2026-10-01,2026-10-15,2500.00,paid,Monthly retainer October
+INV-1149,NorthPoint DFW,media@northpointdfw.org,2026-10-02,2026-10-16,240.00,unpaid,
+INV-1150,Prime Roofing,tony@primeroofingco.com,2026-10-02,2026-10-16,900.00,unpaid,B156 Reels Pack
+INV-1151,Oaklane Dental,hbrooks@oaklanedental.com,2026-10-06,2026-10-20,1500.00,unpaid,B158 Content Day
+INV-1152,Bloom Med Spa - Frisco,priya@bloommedspa.com,2026-08-13,2026-08-27,1500.00,void,B106 Content Day

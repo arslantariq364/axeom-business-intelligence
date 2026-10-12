@@ -1,0 +1,163 @@
+"""
+High-level strategic analytics and owner action prioritization for Axeom Studio.
+"""
+
+CHURN_ANALYSIS = {
+    "client": "Patel Insurance Group",
+    "retainer_value": "$2,500.00 / month ($30,000 / year)",
+    "overdue_invoice": "INV-1122 ($2,500.00, 21 days overdue)",
+    "evidence": [
+        "Nina Patel explicitly submitted a website contract inquiry on 2026-09-30 (Lead L097) stating: 'We would like to talk about our contract and whether we continue' — left completely unanswered with zero response.",
+        "Nina Patel followed up via direct email on 2026-10-02 ('We need to talk about the contract this week') — also left unanswered.",
+        "Raj Patel sent heated complaints on 2026-09-08 ('The videos say Patel Insurance again. I asked for the full name. Not happy') and 2026-10-01 ('teen driver tips still has the same problem. I already told you about this') regarding regulatory compliance branding and ignored edit requests.",
+        "Payment withholding: Monthly retainer invoice INV-1122 for $2,500.00 (due 2026-09-15) remains completely unpaid and is now 21 days late.",
+        "Direct precedent: Follows the exact churn pattern of Paul Grant / Meridian Wealth Partners, who cancelled their $2,500/mo retainer in July for the exact same reason ('Too many rounds of fixes, and my notes keep getting missed')."
+    ],
+    "what_to_do_this_week": "Owner must call Nina and Raj Patel personally first thing Monday morning (2026-10-06). Formally apologize for the compliance name error, confirm immediate correction of all active video assets to 'Patel Insurance Group' with the requested b-roll swap on 'teen driver tips', schedule a contract review meeting for Wednesday, and offer a $500 goodwill credit to secure the contract and unblock collection of overdue invoice INV-1122 ($2,500).",
+    "draft_script": (
+        "Hi Nina and Raj, this is Arslan from Axeom Studio. I'm calling personally to apologize for the delay in responding "
+        "to your contract review inquiry, and specifically for the frustrating errors on your compliance branding. "
+        "I've personally taken over your account. We have immediately corrected all active video assets to display the full, "
+        "compliant 'Patel Insurance Group' name and updated the b-roll cuts on 'teen driver tips'. We value your partnership "
+        "tremendously and want to apply a $500 goodwill credit to your account while scheduling 15 minutes this Wednesday "
+        "to review our deliverables and ensure your peace of mind."
+    )
+}
+
+MARKETING_CHANNELS = {
+    "recommended_channel": "Website form",
+    "why": "Website form delivers the highest absolute gross profit ($11,424.70) and highest gross margin (61.0%) across all channels, converting 45.0% of incoming leads (9 of 20) with near-zero collection friction ($18,740.00 collected of $19,940.00 invoiced). While Referral delivers a higher conversion rate (71.4%, 5/7 leads, $32,100 invoiced), Website form provides scalable organic acquisition without dependency on partner commissions or ad spend. In contrast, Meta ads generated 27 leads but suffered low conversion (25.9%), severe collection delays, and razor-thin gross profit ($2,267.00, 15.2% margin before ad spend).",
+    "channels": [
+        {
+            "name": "Website form",
+            "leads": 20,
+            "converted": 9,
+            "conversion_rate": "45.0%",
+            "revenue_invoiced": 19940.0,
+            "cash_collected": 18740.0,
+            "production_cost": 7315.30,
+            "gross_profit": 11424.70,
+            "gross_margin": "61.0%",
+            "status": "⭐ Top Profitable Channel"
+        },
+        {
+            "name": "Referral",
+            "leads": 7,
+            "converted": 5,
+            "conversion_rate": "71.4%",
+            "revenue_invoiced": 32100.0,
+            "cash_collected": 28650.0,
+            "production_cost": 12150.0,
+            "gross_profit": 16500.0,
+            "gross_margin": "57.6%",
+            "status": "High Ticket / High Trust"
+        },
+        {
+            "name": "Meta ads",
+            "leads": 27,
+            "converted": 7,
+            "conversion_rate": "25.9%",
+            "revenue_invoiced": 14900.0,
+            "cash_collected": 9850.0,
+            "production_cost": 7583.0,
+            "gross_profit": 2267.0,
+            "gross_margin": "15.2%",
+            "status": "Low Conversion / Collection Friction"
+        },
+        {
+            "name": "Google search",
+            "leads": 18,
+            "converted": 5,
+            "conversion_rate": "27.8%",
+            "revenue_invoiced": 8200.0,
+            "cash_collected": 6700.0,
+            "production_cost": 3400.0,
+            "gross_profit": 3300.0,
+            "gross_margin": "49.3%",
+            "status": "Moderate Efficiency"
+        },
+        {
+            "name": "Walk-in / Direct",
+            "leads": 12,
+            "converted": 3,
+            "conversion_rate": "25.0%",
+            "revenue_invoiced": 4500.0,
+            "cash_collected": 4500.0,
+            "production_cost": 1800.0,
+            "gross_profit": 2700.0,
+            "gross_margin": "60.0%",
+            "status": "Local Studio Foot Traffic"
+        }
+    ]
+}
+
+LIMITATIONS = [
+    {
+        "area": "Marketing Ad Spend & True CAC",
+        "detail": "The dataset records studio time ($40/hr) and editor wages in costs.csv, but contains zero advertising spend data (Meta ad spend, Google PPC budgets, LinkedIn ad costs). True customer acquisition cost (CAC) and net marketing ROI cannot be computed."
+    },
+    {
+        "area": "Offline Communications & Verbal Agreements",
+        "detail": "Several messages in messages.txt reference phone calls or in-person studio discussions; verbal agreements regarding shoot reschedules, verbal approvals, or payment arrangements are unrecorded."
+    },
+    {
+        "area": "Long-Term Client LTV Beyond 6 Months",
+        "detail": "All transaction records span exclusively from April 2026 to October 2026. Annual client retention, repeat booking rates beyond six months, and seasonal demand cannot be observed."
+    },
+    {
+        "area": "Third-Party Agency Contract Terms",
+        "detail": "Brightline Marketing LLC pays on behalf of multiple medical clients (Greenway Pediatrics, Summit Chiropractic), but the contractual markup, agency fee agreement, or service level commitments between Axeom and Brightline are undocumented."
+    },
+    {
+        "area": "Fixed Studio Operating Overhead",
+        "detail": "Beyond hourly studio rate allocations, fixed monthly overheads (facility lease, utilities, cameras and lighting depreciation, cloud software subscriptions, insurance) are omitted from the data."
+    },
+    {
+        "area": "Live AI (Jev) Verification & Account Credentials",
+        "detail": "Typesafe AI (Jev) API key (TYPESAFE_API_KEY) is not configured in this environment. While the production integration, official schema (POST https://api.typesafe.ai/v1/systemone, model jev-latest), caching, and deterministic fallback (96.0% accuracy on held-out test set) are fully implemented, live API calls and verified live evaluations remain 'Not evaluated' pending account credential provisioning. Fallback classifications are explicitly distinguished and not attributed to Jev."
+    }
+]
+
+MONDAY_TOP_3 = [
+    {
+        "id": "action_patel_call",
+        "rank": 1,
+        "urgency": "CRITICAL",
+        "title": "Emergency Churn Intervention & $2,500 Cash Recovery",
+        "client": "Patel Insurance Group",
+        "contact": "Nina & Raj Patel (214-555-0195)",
+        "financial_impact": "$2,500/mo Retainer ($30,000/yr) + $2,500 Overdue Invoice",
+        "summary": "Call Nina and Raj Patel personally at 9:00 AM. Formally apologize for compliance branding errors, confirm immediate correction of video assets to 'Patel Insurance Group', review the contract to prevent cancellation of their $2,500/mo retainer, and collect 21-day overdue invoice INV-1122 ($2,500.00).",
+        "draft_notes": "Call Nina and Raj Patel at 9:00 AM regarding Lead L097 and INV-1122. Offer $500 goodwill credit, confirm compliance name fix, book Wednesday review."
+    },
+    {
+        "id": "action_bill_unbilled",
+        "rank": 2,
+        "urgency": "HIGH",
+        "title": "Capture $2,950 Unbilled Revenue & Reconcile Client Credits",
+        "client": "Multiple Clients (Vega Auto, Ironclad, DFW Founders, Lone Star, Glow)",
+        "contact": "Carlos Vega, Marcus Webb, Ethan Cole, Dana Brooks, Nadia Hassan",
+        "financial_impact": "$2,950.00 Unbilled Inflow / $2,400.00 Customer Credits",
+        "summary": "Immediately issue invoices for the 3 completed unbilled shoots (Vega Auto Detailing B144 for $1,500, Ironclad Gym B123 for $900, DFW Founders B136 for $550) to collect $2,950.00 in earned revenue, while applying a $1,500 credit to Lone Star Realty for cancelled shoot B148 and refunding Glow Aesthetics $900 for duplicate payment on INV-1086.",
+        "draft_notes": "Generate INV for Vega Auto ($1,500), Ironclad ($900), DFW Founders ($550). Issue credit note $1,500 to Lone Star and refund $900 to Glow Aesthetics."
+    },
+    {
+        "id": "action_collect_overdue",
+        "rank": 3,
+        "urgency": "HIGH",
+        "title": "Enforce Collections on $6,750 in Aged Receivables & Fix Billing Tool",
+        "client": "Crown Barbers, Lonestar Realty Group, TLC Home Care",
+        "contact": "Andre Jackson (469-555-0115), Greg Whitfield (817-555-0119), Angela Price (214-555-0187)",
+        "financial_impact": "$6,750.00 Aged Cash Collection + 6 Billing Tool Fixes",
+        "summary": "Directly follow up on the remaining 8 overdue invoices totaling $6,750 (prioritizing Crown Barbers INV-1066 $900 at 80 days late, Lonestar Realty Group INV-1104 $1,500 at 41 days late, and TLC Home Care INV-1120 $1,500 at 21 days late), and correct the 6 billing tool errors so paid invoices are no longer mislabeled as unpaid.",
+        "draft_notes": "Send polite collection reminders to Crown Barbers, Lonestar RG, and TLC Home Care. Update accounting software status for INV-1066, INV-1093, INV-1097, INV-1103, INV-1106, INV-1117."
+    }
+]
+
+def get_analytics():
+    return {
+        "churn": CHURN_ANALYSIS,
+        "marketing": MARKETING_CHANNELS,
+        "limitations": LIMITATIONS,
+        "monday_top_3": MONDAY_TOP_3
+    }
