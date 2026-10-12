@@ -31,6 +31,7 @@ data/*.txt
 *.db-journal
 *_backup.*
 axeom_source_review.zip
+video_production/
 
 # 4. Environment Variables & Secrets
 .env
