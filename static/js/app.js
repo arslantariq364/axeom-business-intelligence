@@ -14,6 +14,41 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAppState();
 });
 
+// Generate a real browser download. The server returns a JSON attachment.
+function downloadAnswersJson() {
+  const link = document.createElement('a');
+  link.href = '/api/export-answers';
+  link.download = 'answers.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function updateDashboardLabels() {
+  if (!appState) return;
+  const m = appState.metrics || {};
+  const display = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = String(value);
+  };
+  const cash = n => Number(n || 0).toLocaleString('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
+  display('nav-money-badge', cash(m.overdue_total) + ' Due');
+  display('nav-client-badge', m.client_count ?? appState.clients?.length ?? 0);
+  display('nav-requests-badge', (m.lost_requests_count ?? 0) + ' Lost');
+  display('client-directory-summary', `${m.client_count ?? appState.clients?.length ?? 0} listed clients and ${appState.third_party_payers?.length ?? 0} separate third-party payers`);
+  const select = document.getElementById('client-filter-select');
+  if (select?.options?.length) select.options[0].text = `All Clients (${m.client_count ?? appState.clients?.length ?? 0})`;
+  const money = [['overdue', cash(m.overdue_total)], ['we_owe', cash(m.we_owe_total)], ['never_billed', cash(m.never_billed_total)], ['discrepancies', m.discrepancies_count ?? 0]];
+  for (const [tab, count] of money) {
+    const node = document.querySelector(`#money-sub-tabs [data-subtab="${tab}"]`);
+    if (node) node.textContent = ({overdue: 'Overdue Payments', we_owe: 'Refunds & Credits Owed', never_billed: 'Uninvoiced Work', discrepancies: 'Billing Tool Errors'}[tab]) + ` (${count})`;
+  }
+  for (const [tab, count, label] of [['lost', m.lost_requests_count, 'Lost Edit Requests'], ['leads', m.unreplied_leads_count, 'Unanswered Leads']]) {
+    const node = document.querySelector(`#requests-sub-tabs [data-subtab="${tab}"]`);
+    if (node) node.textContent = `${label} (${count ?? 0})`;
+  }
+}
+
 // Load main application state from backend
 async function loadAppState() {
   try {
@@ -21,6 +56,7 @@ async function loadAppState() {
     const data = await res.json();
     if (data.status === 'success') {
       appState = data;
+      updateDashboardLabels();
       renderAllViews();
     }
   } catch (err) {
@@ -48,6 +84,8 @@ function initNavigation() {
 
 function switchView(viewName) {
   currentView = viewName;
+  const heading = document.getElementById('active-view-heading');
+  if (heading) heading.textContent = 'AXEOM • ' + ({today:'Today',money:'Money & Invoices',clients:'Clients',requests:'Requests & Leads',history:'Client History',evidence:'Source Evidence',upload:'Add New Files'}[viewName] || 'Today');
   window.location.hash = viewName;
 
   // Update nav buttons
@@ -228,31 +266,31 @@ function renderTodayView() {
       <div class="pulse-card" onclick="switchView('money'); setMoneySubTab('overdue');">
         <div class="pulse-card-label">OVERDUE PAYMENTS <span style="color:var(--danger)">⚠️</span></div>
         <div class="pulse-card-value" style="color:var(--danger)">$${metrics.overdue_total.toLocaleString('en-US', {minimumFractionDigits:2})}</div>
-        <div class="pulse-card-sub">9 invoices past due date</div>
+        <div class="pulse-card-sub">${metrics.overdue_count} invoices past due date</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('money'); setMoneySubTab('never_billed');">
         <div class="pulse-card-label">UNINVOICED WORK <span>⚡</span></div>
         <div class="pulse-card-value" style="color:var(--warning)">$${metrics.never_billed_total.toLocaleString('en-US', {minimumFractionDigits:2})}</div>
-        <div class="pulse-card-sub">3 completed chargeable shoots</div>
+        <div class="pulse-card-sub">${metrics.never_billed_count} completed chargeable items</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('money'); setMoneySubTab('we_owe');">
         <div class="pulse-card-label">REFUNDS & CREDITS OWED <span>🔄</span></div>
         <div class="pulse-card-value" style="color:var(--info)">$${metrics.we_owe_total.toLocaleString('en-US', {minimumFractionDigits:2})}</div>
-        <div class="pulse-card-sub">2 clients (Glow & Lone Star)</div>
+        <div class="pulse-card-sub">${metrics.we_owe_count} credit or refund items</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('requests'); setReqSubTab('lost');">
         <div class="pulse-card-label">REQUESTS NEEDING ATTENTION <span>📥</span></div>
         <div class="pulse-card-value" style="color:var(--danger)">${metrics.lost_requests_count}</div>
-        <div class="pulse-card-sub">33 missed edits (0 on board)</div>
+        <div class="pulse-card-sub">${metrics.lost_requests_count} edit requests needing review</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('requests'); setReqSubTab('leads');">
         <div class="pulse-card-label">INQUIRIES AWAITING REPLY <span>⏱️</span></div>
         <div class="pulse-card-value" style="color:var(--warning)">${metrics.unreplied_leads_count}</div>
-        <div class="pulse-card-sub">22 leads without reply</div>
+        <div class="pulse-card-sub">${metrics.unreplied_leads_count} leads without first reply</div>
       </div>
     `;
   }
@@ -612,7 +650,7 @@ function renderRequestsView() {
     container.innerHTML = `
       <div class="table-card">
         <div class="table-header-box">
-          <div class="table-header-title">33 Verified Lost Client Edit Requests (Never Logged on Board)</div>
+          <div class="table-header-title">${req.lost_requests.length} Identified Lost Client Edit Requests</div>
           <span class="badge badge-danger">Deterioration Began: August 2026</span>
         </div>
         <div class="table-responsive">
@@ -685,7 +723,7 @@ function renderRequestsView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Unanswered Inbound Leads (Zero First Reply)</div>
-          <span class="badge badge-warning">22 Leads Awaiting Owner Triage</span>
+          <span class="badge badge-warning">${req.unreplied_leads.length} Leads Awaiting Owner Triage</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -1172,11 +1210,14 @@ async function handleFileUpload(file) {
           <h4 style="color:var(--success); font-weight: 800; margin-bottom: 4px;">✅ File Ingestion Succeeded</h4>
           <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
           <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">
-            Detected Role: <strong>${result.file_role}</strong> • Rows Processed: <strong>${result.rows_processed}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
+            Detected Role: <strong>${result.file_role}</strong> • Added: <strong>${result.added ?? 0}</strong> • Updated: <strong>${result.updated ?? 0}</strong> • Skipped: <strong>${result.skipped ?? 0}</strong> • Rejected: <strong>${result.rejected ?? 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
           </div>
+          ${(result.errors || []).length ? '<ul>' + result.errors.map(e => '<li>' + escapeHtml(e) + '</li>').join('') + '</ul>' : ''}
         </div>
       `;
-      setTimeout(loadAppState, 1200);
+      await loadAppState();
+    } else if (result.status === 'duplicate_file') {
+      statusBox.innerHTML = '<div class="table-card" style="padding:16px">This identical file was already imported. No records changed.</div>';
     } else {
       statusBox.innerHTML = `
         <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
