@@ -14,7 +14,7 @@ from services.decisions import get_all_decisions, save_decision
 from services.history import get_client_history
 from services.ingest import process_file_upload
 from services.evidence import EVIDENCE_REGISTER, search_records
-from services.export import export_answers_json
+from services.export import export_answers_json, build_answers_json
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
@@ -186,8 +186,13 @@ def search_evidence_route():
 
 @app.route("/api/export-answers")
 def export_answers_route():
-    answers = export_answers_json()
-    return jsonify({"status": "success", "message": "Exported to answers_working.json", "client_count": answers["client_count"]})
+    # Serverless environments may not permit writes to the project directory.
+    # Return the actual JSON attachment directly, rather than saving it on the server
+    # and showing a success alert that does not download anything.
+    response = jsonify(build_answers_json())
+    response.headers["Content-Disposition"] = 'attachment; filename="answers.json"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 @app.route("/api/classifications")
 def get_classifications_route():
