@@ -69,3 +69,8 @@ tests/reports/screenshots/uploads/
 .vscode/
 *.swp
 *.swo
+.neon
+.agents/
+skills-lock.json
+.vercel
+.env*

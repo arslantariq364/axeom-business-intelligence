@@ -23,9 +23,26 @@ DB_PATH = os.environ.get("AXEOM_DB_PATH", "axeom.db")
 DATA_DIR = Path("submission/original_data") if Path("submission/original_data").exists() else Path("data")
 
 
+def get_database_url():
+    """Returns DATABASE_URL from environment or local .env file."""
+    url = os.environ.get("DATABASE_URL")
+    if not url and os.path.exists(".env"):
+        try:
+            with open(".env", "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("DATABASE_URL="):
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val and not val.startswith("#"):
+                            return val
+        except Exception:
+            pass
+    return url
+
+
 def is_postgres():
-    """Returns True if DATABASE_URL environment variable is configured."""
-    return bool(os.environ.get("DATABASE_URL"))
+    """Returns True if DATABASE_URL is configured."""
+    return bool(get_database_url())
 
 
 def normalize_database_url(url: str) -> str:
@@ -170,7 +187,7 @@ def get_db():
     - Neon PostgreSQL connection if DATABASE_URL is set
     - SQLite connection if DATABASE_URL is unset
     """
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = get_database_url()
     if database_url:
         if not PSYCOPG_AVAILABLE:
             raise RuntimeError("psycopg is required when DATABASE_URL is configured. Run: pip install 'psycopg[binary]'")

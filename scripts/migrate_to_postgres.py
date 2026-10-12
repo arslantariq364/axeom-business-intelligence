@@ -14,7 +14,7 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKSPACE))
 
-from services.db import get_db, init_db, is_postgres, normalize_database_url
+from services.db import get_db, init_db, is_postgres, normalize_database_url, get_database_url
 import psycopg
 from psycopg.rows import dict_row
 
@@ -114,7 +114,7 @@ TABLES_TO_MIGRATE = [
 
 def run_migration(sqlite_path="axeom_pre_migration_backup.db", database_url=None):
     if database_url is None:
-        database_url = os.environ.get("DATABASE_URL")
+        database_url = get_database_url()
     if not database_url:
         print("❌ Error: DATABASE_URL must be provided or set in environment.")
         return False

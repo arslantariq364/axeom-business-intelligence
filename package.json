@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "playwright-core": "^1.64.0"
+  },
+  "dependencies": {
+    "neon": "^8.3.5"
   }
 }
