@@ -1,13 +1,15 @@
-AXEOM STUDIO BUSINESS INTELLIGENCE — OFFICIAL DEMONSTRATION VIDEO TRANSCRIPT
+AXEOM STUDIO BUSINESS INTELLIGENCE — OFFICIAL 5-MINUTE DEMONSTRATION VIDEO TRANSCRIPT
 Challenge: Axeom Challenge Pack 01
 Candidate: Arslan Tariq (tsa6648@gmail.com)
 Live Production URL: https://axeom-business-intelligence.vercel.app
 GitHub Repository: https://github.com/arslantariq364/axeom-business-intelligence
-Total Video Duration: 07:14
+Total Video Duration: 05:12 (312 seconds)
 Business Reference Date: 2026-10-06
+Video Stream: 1920x1080 Full HD, 30 fps, H.264
+Audio Stream: AAC Stereo 44.1 kHz, 192 kbps
 
 ================================================================================
-PART 1 — AUTOMATED DEMONSTRATION WALKTHROUGH
+5-MINUTE LIVE SYSTEM DEMONSTRATION WALKTHROUGH
 Narration: Studio AI Narration (Microsoft Neural Synthesis)
 ================================================================================
 
@@ -35,26 +37,6 @@ Narration: Studio AI Narration (Microsoft Neural Synthesis)
 [04:10 - 04:48] SCENE 8: ARCHITECTURE, PERFORMANCE & TRANSPARENT JEV STATUS
 "The technical architecture pairs Python Flask with Neon PostgreSQL on AWS us-east-2, fronted by Vercel serverless functions. Connection pooling and initialization guards ensure rapid response times under zero monthly hosting costs. Regarding AI integration: while the challenge specified Jev classification, external Jev cloud API keys were unavailable. We transparently report the live Jev API as un-evaluated, while deploying a deterministic intent classifier that accurately routes inquiries and categorizes lead urgency with zero latency."
 
-[04:48 - 05:15] SCENE 9: LIVE ANSWERS.JSON EXPORT & SCHEMA COMPLIANCE
+[04:48 - 05:12] SCENE 9: LIVE ANSWERS.JSON EXPORT & SCHEMA COMPLIANCE
 "Finally, the Export answers.json button triggers an instant, in-memory stream of the complete challenge submission payload. The generated file strictly adheres to the official Pack 01 JSON schema, embedding verified financial totals, client rosters, and candidate metadata without requiring read-only serverless disk writes. The entire test suite of 69 automated tests passes with 100 percent reliability."
-
-================================================================================
-PART 2 — CANDIDATE TECHNICAL Q&A
-Speaker: Arslan Tariq (Personal Executive Briefing)
-================================================================================
-
-[05:15 - 05:34] SCENE 10: Q&A SEGMENT INTRODUCTION
-"We now transition to Part Two: The Candidate Technical Q&A. The Axeom Challenge requires the candidate to personally address three critical engineering questions on camera. Here is the exact technical briefing, detailing the architectural challenges, initial mistakes, and strategic advice for the studio owner."
-
-[05:34 - 06:01] SCENE 11: QUESTION 1 — WHAT WAS THE HARDEST PART, AND HOW DID YOU SOLVE IT?
-"The hardest challenge was untangling client identity resolution and third-party payer relationships without corrupting financial totals. Several clients had disparate names across shoot logs, invoices, and payments, while third-party institutions paid bills on behalf of other clients. I solved this by architecting a strict canonical client registry with alias mapping, decoupling the payer entity from the client beneficiary while preserving invoice provenance."
-
-[06:01 - 06:32] SCENE 12: QUESTION 2 — WHAT DID YOU GET WRONG AT FIRST?
-"Initially, I assumed the legacy billing software export was authoritative. However, deep reconciliation between bank deposits, invoice schedules, and message logs revealed that the billing tool had six software bugs, falsely flagging unpaid invoices as paid. Furthermore, early test fixtures mutated production invoice INV-1001. I corrected this by implementing rigorous dual-source verification and strictly isolating test mutations to dedicated QA database branches."
-
-[06:32 - 06:57] SCENE 13: QUESTION 3 — WHAT WOULD YOU TELL THE OWNER TO STOP DOING?
-"I would tell the owner to immediately stop delivering finished video files before issuing an invoice. Delivering raw work upfront leaked 2,950 dollars across three clients who were never billed. Second, the owner must stop treating inbound inquiries informally: in August alone, 22 qualified leads were lost because messages sat unassigned without a mandatory 24-hour response SLA."
-
-[06:57 - 07:14] SCENE 14: CONCLUSION & OUTRO
-"In summary, the Axeom Business Intelligence system delivers a robust, secure, and production-ready operations hub for Axeom Studio. All source code, database migrations, test suites, and deliverables are fully committed to GitHub and deployed live on Vercel. Thank you for watching."
 ================================================================================
