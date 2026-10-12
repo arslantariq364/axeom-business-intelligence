@@ -270,16 +270,25 @@ def get_requests_and_leads():
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM leads")
+    cur.execute("SELECT * FROM leads WHERE deleted_at IS NULL")
     leads = [dict(r) for r in cur.fetchall()]
+
+    # Filter out lost requests if the underlying production video was soft-deleted
+    cur.execute("SELECT video_id FROM production_board WHERE deleted_at IS NOT NULL")
+    deleted_video_ids = {r[0] for r in cur.fetchall()}
     conn.close()
+
+    active_lost_requests = [
+        lr for lr in LOST_REQUESTS
+        if lr.get("video_id") not in deleted_video_ids
+    ]
 
     unreplied = [l for l in leads if not l.get('first_reply') or not l['first_reply'].strip()]
     replied = [l for l in leads if l.get('first_reply') and l['first_reply'].strip()]
 
     return {
-        "lost_requests": LOST_REQUESTS,
-        "lost_requests_count": len(LOST_REQUESTS),
+        "lost_requests": active_lost_requests,
+        "lost_requests_count": len(active_lost_requests),
         "root_causes": ROOT_CAUSES,
         "deterioration": DETERIORATION,
         "unreplied_leads": unreplied,

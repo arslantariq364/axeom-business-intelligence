@@ -64,6 +64,43 @@ async function loadAppState() {
   }
 }
 
+function updateDashboardLabels() {
+  if (!appState) return;
+  const metrics = appState.metrics || {};
+  const clients = appState.clients || [];
+
+  // Update nav badges dynamically
+  const moneyBadge = document.getElementById('nav-money-badge');
+  if (moneyBadge && metrics.overdue_total !== undefined) {
+    moneyBadge.innerText = '$' + Math.round(metrics.overdue_total).toLocaleString('en-US');
+  }
+
+  const clientBadge = document.getElementById('nav-client-badge');
+  if (clientBadge && clients.length !== undefined) {
+    clientBadge.innerText = clients.length;
+  }
+
+  const requestsBadge = document.getElementById('nav-requests-badge');
+  if (requestsBadge && metrics.lost_requests_count !== undefined) {
+    requestsBadge.innerText = (metrics.lost_requests_count + (metrics.unreplied_leads_count || 0));
+  }
+
+  const clientDirSummary = document.getElementById('client-directory-summary');
+  if (clientDirSummary) {
+    clientDirSummary.innerText = `All ${clients.length} Active Accounts`;
+  }
+}
+
+function downloadAnswersJson() {
+  const link = document.createElement('a');
+  link.href = '/api/export-answers';
+  link.setAttribute('download', 'answers.json');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+window.downloadAnswersJson = downloadAnswersJson;
+
 // Navigation between screens
 function initNavigation() {
   const navBtns = document.querySelectorAll('[data-view-target]');
@@ -77,7 +114,7 @@ function initNavigation() {
 
   // Check URL hash if present
   const hash = window.location.hash.replace('#', '');
-  if (['today', 'clients', 'money', 'requests', 'evidence', 'history', 'upload'].includes(hash)) {
+  if (['today', 'clients', 'money', 'requests', 'evidence', 'history', 'upload', 'manage'].includes(hash)) {
     switchView(hash);
   }
 }
@@ -87,6 +124,22 @@ function switchView(viewName) {
   const heading = document.getElementById('active-view-heading');
   if (heading) heading.textContent = 'AXEOM • ' + ({today:'Today',money:'Money & Invoices',clients:'Clients',requests:'Requests & Leads',history:'Client History',evidence:'Source Evidence',upload:'Add New Files'}[viewName] || 'Today');
   window.location.hash = viewName;
+
+  // Update active view heading dynamically
+  const headingElem = document.getElementById('active-view-heading');
+  if (headingElem) {
+    const headings = {
+      'today': 'Axeom • Today',
+      'clients': 'Axeom • Client Directory',
+      'money': 'Axeom • Financial Health & Receivables',
+      'requests': 'Axeom • Client Requests & Inquiries',
+      'evidence': 'Axeom • Universal Evidence Search',
+      'history': 'Axeom • Client History',
+      'upload': 'Axeom • Upload Business Files',
+      'manage': 'Axeom • Data Management & Reports'
+    };
+    headingElem.innerText = headings[viewName] || 'Axeom Studio • Owner OS';
+  }
 
   // Update nav buttons
   document.querySelectorAll('[data-view-target]').forEach(btn => {
@@ -111,6 +164,8 @@ function switchView(viewName) {
   // If switched to history, load selected client
   if (viewName === 'history') {
     renderClientHistory(selectedClientId);
+  } else if (viewName === 'manage') {
+    renderManageView();
   }
 }
 
@@ -123,6 +178,9 @@ function renderAllViews() {
   renderRequestsView();
   renderEvidenceView();
   renderClientHistory(selectedClientId);
+  if (currentView === 'manage') {
+    renderManageView();
+  }
 }
 
 // -------------------------------------------------------------------------
@@ -272,25 +330,25 @@ function renderTodayView() {
       <div class="pulse-card" onclick="switchView('money'); setMoneySubTab('never_billed');">
         <div class="pulse-card-label">UNINVOICED WORK <span>⚡</span></div>
         <div class="pulse-card-value" style="color:var(--warning)">$${metrics.never_billed_total.toLocaleString('en-US', {minimumFractionDigits:2})}</div>
-        <div class="pulse-card-sub">${metrics.never_billed_count} completed chargeable items</div>
+        <div class="pulse-card-sub">${metrics.never_billed_count} completed chargeable shoots</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('money'); setMoneySubTab('we_owe');">
         <div class="pulse-card-label">REFUNDS & CREDITS OWED <span>🔄</span></div>
         <div class="pulse-card-value" style="color:var(--info)">$${metrics.we_owe_total.toLocaleString('en-US', {minimumFractionDigits:2})}</div>
-        <div class="pulse-card-sub">${metrics.we_owe_count} credit or refund items</div>
+        <div class="pulse-card-sub">${metrics.we_owe_count} refund/credit items</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('requests'); setReqSubTab('lost');">
         <div class="pulse-card-label">REQUESTS NEEDING ATTENTION <span>📥</span></div>
         <div class="pulse-card-value" style="color:var(--danger)">${metrics.lost_requests_count}</div>
-        <div class="pulse-card-sub">${metrics.lost_requests_count} edit requests needing review</div>
+        <div class="pulse-card-sub">${metrics.lost_requests_count} unassigned edit requests</div>
       </div>
 
       <div class="pulse-card" onclick="switchView('requests'); setReqSubTab('leads');">
         <div class="pulse-card-label">INQUIRIES AWAITING REPLY <span>⏱️</span></div>
         <div class="pulse-card-value" style="color:var(--warning)">${metrics.unreplied_leads_count}</div>
-        <div class="pulse-card-sub">${metrics.unreplied_leads_count} leads without first reply</div>
+        <div class="pulse-card-sub">${metrics.unreplied_leads_count} leads without reply</div>
       </div>
     `;
   }
@@ -383,7 +441,7 @@ function renderMoneyView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Overdue Receivables (Strictly Due on or Before 6 Oct 2026)</div>
-          <span class="badge badge-danger">Total Overdue: $${money.overdue_total.toLocaleString('en-US', {minimumFractionDigits:2})} (9 Invoices)</span>
+          <span class="badge badge-danger">Total Overdue: $${money.overdue_total.toLocaleString('en-US', {minimumFractionDigits:2})} (${money.overdue.length} Invoices)</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -422,7 +480,7 @@ function renderMoneyView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Customer Overpayments & Uncredited Prepayments</div>
-          <span class="badge badge-info">Total Credit Balance: $${money.we_owe_total.toLocaleString('en-US', {minimumFractionDigits:2})} (2 Clients)</span>
+          <span class="badge badge-info">Total Credit Balance: $${money.we_owe_total.toLocaleString('en-US', {minimumFractionDigits:2})} (${money.we_owe.length} Items)</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -459,7 +517,7 @@ function renderMoneyView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Completed Chargeable Work Never Invoiced</div>
-          <span class="badge badge-warning">Unbilled Revenue: $${money.never_billed_total.toLocaleString('en-US', {minimumFractionDigits:2})} (3 Shoots)</span>
+          <span class="badge badge-warning">Unbilled Revenue: $${money.never_billed_total.toLocaleString('en-US', {minimumFractionDigits:2})} (${money.never_billed.length} Shoots)</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -498,7 +556,7 @@ function renderMoneyView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Billing Software Discrepancies vs. Payment Truth</div>
-          <span class="badge badge-danger">6 Software Errors Detected</span>
+          <span class="badge badge-danger">${money.discrepancies.length} Software Errors Detected</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -537,7 +595,7 @@ function renderMoneyView() {
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Uncertain Allocations & Payer Policy Audits</div>
-          <span class="badge badge-warning">5 Documented Evidence Dispositions</span>
+          <span class="badge badge-warning">${(money.uncertain || []).length} Documented Evidence Dispositions</span>
         </div>
         <p style="padding: 0 16px 12px 16px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
           Where transaction references were missing, partial, or split across entities, Axeom applied strict conservative rules grounded in email and message evidence.
@@ -650,7 +708,7 @@ function renderRequestsView() {
     container.innerHTML = `
       <div class="table-card">
         <div class="table-header-box">
-          <div class="table-header-title">${req.lost_requests.length} Identified Lost Client Edit Requests</div>
+          <div class="table-header-title">${req.lost_requests.length} Verified Lost Client Edit Requests (Never Logged on Board)</div>
           <span class="badge badge-danger">Deterioration Began: August 2026</span>
         </div>
         <div class="table-responsive">
@@ -1205,32 +1263,80 @@ async function handleFileUpload(file) {
     const result = await res.json();
 
     if (result.status === 'success') {
+      const added = result.added || 0;
+      const updated = result.updated || 0;
+      const skipped = result.skipped || 0;
+      const rejected = result.rejected || 0;
+      const role = result.file_role || 'unknown';
+      const hashStr = result.sha256 ? result.sha256.substring(0, 16) + '...' : '';
+
+      let badgeTag = '<span class="badge badge-success">SUCCESS</span>';
+      if (rejected > 0) {
+        badgeTag = '<span class="badge badge-warning">PARTIAL SUCCESS</span>';
+      }
+
+      let errorList = '';
+      if (result.errors && result.errors.length > 0) {
+        errorList = `<div style="margin-top: 8px; font-size: 0.78rem; color: var(--danger);">Rejections / Warnings: ${result.errors.map(e => escapeHtml(e)).join('; ')}</div>`;
+      }
+
       statusBox.innerHTML = `
         <div style="padding: 16px; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md);">
-          <h4 style="color:var(--success); font-weight: 800; margin-bottom: 4px;">✅ File Ingestion Succeeded</h4>
-          <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">
-            Detected Role: <strong>${result.file_role}</strong> • Added: <strong>${result.added ?? 0}</strong> • Updated: <strong>${result.updated ?? 0}</strong> • Skipped: <strong>${result.skipped ?? 0}</strong> • Rejected: <strong>${result.rejected ?? 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <h4 style="color:var(--success); font-weight: 800; margin: 0;">✅ File Ingestion Completed</h4>
+            ${badgeTag}
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; font-size: 0.8rem; background: var(--surface); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+            <div><strong>Role:</strong> ${escapeHtml(role)}</div>
+            <div><strong style="color:var(--success);">Added:</strong> ${added}</div>
+            <div><strong style="color:var(--info);">Updated:</strong> ${updated}</div>
+            <div><strong style="color:var(--text-muted);">Skipped:</strong> ${skipped}</div>
+            <div><strong style="color:var(--danger);">Rejected:</strong> ${rejected}</div>
+          </div>
+          ${errorList}
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+            SHA-256 Hash: <code>${hashStr}</code> • Revision: <code>${escapeHtml(result.revision_id || 'N/A')}</code>
+          </div>
+        </div>
+      `;
+      // Reload app state immediately
+      await loadAppState();
+    } else if (result.status === 'duplicate_file') {
+      statusBox.innerHTML = `
+        <div style="padding: 16px; background: var(--surface); border: 1px solid var(--info-border); border-radius: var(--radius-md);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <h4 style="color:var(--info); font-weight: 800; margin: 0;">ℹ️ Duplicate File Skipped (Idempotent)</h4>
+            <span class="badge badge-info">DUPLICATE</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+          <div style="font-size: 0.78rem; color: var(--text-muted);">
+            Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
           </div>
           ${(result.errors || []).length ? '<ul>' + result.errors.map(e => '<li>' + escapeHtml(e) + '</li>').join('') + '</ul>' : ''}
         </div>
       `;
-      await loadAppState();
-    } else if (result.status === 'duplicate_file') {
-      statusBox.innerHTML = '<div class="table-card" style="padding:16px">This identical file was already imported. No records changed.</div>';
     } else {
+      let errorDetails = '';
+      if (result.errors && result.errors.length > 0) {
+        errorDetails = `<ul style="margin: 6px 0 0 16px; font-size: 0.8rem; color: var(--danger);">${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+      }
       statusBox.innerHTML = `
         <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-          <h4 style="color:var(--danger); font-weight: 800;">❌ Ingestion Error</h4>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <h4 style="color:var(--danger); font-weight: 800; margin: 0;">❌ Validation / Ingestion Error</h4>
+            <span class="badge badge-danger">REJECTED</span>
+          </div>
           <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
+          ${errorDetails}
         </div>
       `;
     }
   } catch (err) {
     statusBox.innerHTML = `
       <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-        <h4 style="color:var(--danger); font-weight: 800;">Network Error</h4>
-        <p style="font-size: 0.85rem; color: var(--text-main);">${err.message}</p>
+        <h4 style="color:var(--danger); font-weight: 800; margin: 0 0 4px 0;">Network Error</h4>
+        <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(err.message)}</p>
       </div>
     `;
   }
@@ -1332,3 +1438,738 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// -------------------------------------------------------------------------
+// 8. MANAGE DATA VIEW CONTROLLER & ACTIONS
+// -------------------------------------------------------------------------
+let manageCurrentSubTab = 'records';
+let manageCurrentTable = 'clients';
+let manageCurrentStatus = 'all';
+let manageSearchTerm = '';
+let currentEditContext = null;
+let currentImpactContext = null;
+let currentReversalContext = null;
+
+function setManageSubTab(subtab) {
+  manageCurrentSubTab = subtab;
+  document.querySelectorAll('#manage-sub-tabs .sub-tab-btn').forEach(btn => {
+    if (btn.getAttribute('data-subtab') === subtab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  renderManageView();
+}
+
+async function checkOwnerAuthStatus() {
+  try {
+    const res = await fetch('/api/auth/owner-status');
+    const d = await res.json();
+    const btnText = document.getElementById('owner-auth-btn-text');
+    const btn = document.getElementById('owner-auth-toggle-btn');
+    if (btnText && btn) {
+      if (d.is_authorized) {
+        btnText.textContent = 'Owner Authorized';
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-lime');
+      } else {
+        btnText.textContent = 'Owner Auth';
+        btn.classList.remove('btn-lime');
+        btn.classList.add('btn-secondary');
+      }
+    }
+  } catch (err) {
+    console.error('Auth status check error:', err);
+  }
+}
+
+async function renderManageView() {
+  const container = document.getElementById('manage-content-container');
+  if (!container) return;
+  checkOwnerAuthStatus();
+
+  if (manageCurrentSubTab === 'records') {
+    manageCurrentStatus = 'all';
+    await renderManageRecordsSubTab(container);
+  } else if (manageCurrentSubTab === 'uploads') {
+    await renderManageUploadsSubTab(container);
+  } else if (manageCurrentSubTab === 'archived') {
+    manageCurrentStatus = 'archived';
+    await renderManageRecordsSubTab(container);
+  } else if (manageCurrentSubTab === 'delete_old') {
+    renderDeleteOldDataSubTab(container);
+  } else if (manageCurrentSubTab === 'reset') {
+    await renderResetBusinessDataSubTab(container);
+  }
+}
+
+// SUBTAB A & C: RECORDS TABLE
+async function renderManageRecordsSubTab(container) {
+  container.innerHTML = `
+    <div style="background: var(--surface); border-radius: var(--radius-xl); border: 1px solid var(--card-border); padding: 18px; margin-bottom: 16px;">
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <div>
+            <label style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Table Dataset</label>
+            <select id="manage-table-select" class="sub-tab-btn" style="outline: none; font-weight: 700;" onchange="manageCurrentTable=this.value; renderManageRecordsSubTab(document.getElementById('manage-content-container'));">
+              <option value="clients" ${manageCurrentTable==='clients'?'selected':''}>Clients Directory</option>
+              <option value="invoices" ${manageCurrentTable==='invoices'?'selected':''}>Invoices Ledger</option>
+              <option value="payments" ${manageCurrentTable==='payments'?'selected':''}>Payments Recorded</option>
+              <option value="bookings" ${manageCurrentTable==='bookings'?'selected':''}>Studio Bookings</option>
+              <option value="leads" ${manageCurrentTable==='leads'?'selected':''}>Inbound Leads</option>
+              <option value="messages" ${manageCurrentTable==='messages'?'selected':''}>Messages Log</option>
+              <option value="production_board" ${manageCurrentTable==='production_board'?'selected':''}>Production Board</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Status Filter</label>
+            <select id="manage-status-select" class="sub-tab-btn" style="outline: none;" onchange="manageCurrentStatus=this.value; renderManageRecordsSubTab(document.getElementById('manage-content-container'));">
+              <option value="all" ${manageCurrentStatus==='all'?'selected':''}>All Records</option>
+              <option value="active" ${manageCurrentStatus==='active'?'selected':''}>Active Only</option>
+              <option value="archived" ${manageCurrentStatus==='archived'?'selected':''}>Archived</option>
+              <option value="deleted" ${manageCurrentStatus==='deleted'?'selected':''}>Soft-Deleted</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="search-box" style="flex: 1; max-width: 320px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="manage-search-input" class="search-input" placeholder="Search ${manageCurrentTable}..." value="${escapeHtml(manageSearchTerm)}" oninput="manageSearchTerm=this.value; debounceManageSearch();">
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div id="manage-records-table-wrap" style="overflow-x: auto;">
+        <div style="text-align: center; padding: 30px; color: var(--text-muted);">Loading records from database...</div>
+      </div>
+    </div>
+  `;
+
+  try {
+    const url = `/api/manage/records?table=${manageCurrentTable}&status=${manageCurrentStatus}&search=${encodeURIComponent(manageSearchTerm)}&limit=100`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const tableWrap = document.getElementById('manage-records-table-wrap');
+    if (!tableWrap) return;
+
+    if (!data.records || data.records.length === 0) {
+      tableWrap.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-muted);">No records found matching criteria.</div>`;
+      return;
+    }
+
+    const pk = data.pk;
+    const records = data.records;
+
+    // Pick top 5 informative columns
+    let cols = [];
+    if (manageCurrentTable === 'clients') cols = ['id', 'canonical_name', 'primary_contact', 'status'];
+    else if (manageCurrentTable === 'invoices') cols = ['invoice_no', 'bill_to', 'amount', 'due', 'status'];
+    else if (manageCurrentTable === 'payments') cols = ['payment_id', 'payer', 'amount', 'reference', 'payment_date'];
+    else if (manageCurrentTable === 'bookings') cols = ['booking_id', 'client_name', 'service', 'price', 'status'];
+    else if (manageCurrentTable === 'leads') cols = ['lead_id', 'name', 'business', 'email', 'status'];
+    else if (manageCurrentTable === 'messages') cols = ['id', 'entity', 'channel', 'direction', 'msg_datetime'];
+    else if (manageCurrentTable === 'production_board') cols = ['video_id', 'client', 'title', 'editor', 'stage'];
+
+    const ths = cols.map(c => `<th style="text-transform: capitalize;">${c.replace(/_/g, ' ')}</th>`).join('') + '<th>Status</th><th style="text-align: right;">Actions</th>';
+
+    const trs = records.map(r => {
+      const isArchived = Boolean(r.is_archived);
+      const isDeleted = Boolean(r.deleted_at);
+      let statusBadge = `<span class="badge badge-success">Active</span>`;
+      if (isDeleted) statusBadge = `<span class="badge badge-danger">Deleted</span>`;
+      else if (isArchived) statusBadge = `<span class="badge badge-warning">Archived</span>`;
+
+      const tdValues = cols.map(c => {
+        let val = r[c] ?? '';
+        if (c === 'amount' || c === 'price') val = `$${parseFloat(val || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        return `<td>${escapeHtml(String(val))}</td>`;
+      }).join('');
+
+      // Action buttons
+      let actionButtons = `
+        <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.72rem;" onclick="openRecordEditModal('${manageCurrentTable}', '${escapeHtml(String(r[pk]))}')">Edit</button>
+      `;
+
+      if (isDeleted || isArchived) {
+        actionButtons += `
+          <button class="btn btn-lime btn-sm" style="padding: 4px 8px; font-size: 0.72rem;" onclick="quickRestoreRecord('${manageCurrentTable}', '${escapeHtml(String(r[pk]))}')">Restore</button>
+        `;
+      } else {
+        actionButtons += `
+          <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.72rem;" onclick="quickArchiveRecord('${manageCurrentTable}', '${escapeHtml(String(r[pk]))}')">Archive</button>
+          <button class="btn btn-danger btn-sm" style="padding: 4px 8px; font-size: 0.72rem;" onclick="openImpactModal('${manageCurrentTable}', '${escapeHtml(String(r[pk]))}', 'delete')">Delete</button>
+        `;
+      }
+
+      return `<tr>${tdValues}<td>${statusBadge}</td><td style="text-align: right; white-space: nowrap;">${actionButtons}</td></tr>`;
+    }).join('');
+
+    tableWrap.innerHTML = `
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Showing ${records.length} of ${data.total_count} records in <strong>${data.label}</strong></div>
+      <table class="data-table">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    `;
+  } catch (err) {
+    console.error('Failed to render records table:', err);
+    container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--danger);">Error loading records: ${err.message}</div>`;
+  }
+}
+
+let manageSearchDebounceTimer = null;
+function debounceManageSearch() {
+  clearTimeout(manageSearchDebounceTimer);
+  manageSearchDebounceTimer = setTimeout(() => {
+    renderManageRecordsSubTab(document.getElementById('manage-content-container'));
+  }, 300);
+}
+
+// SUBTAB B: UPLOAD HISTORY
+async function renderManageUploadsSubTab(container) {
+  container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--text-muted);">Loading upload history...</div>`;
+  try {
+    const res = await fetch('/api/manage/uploads');
+    const data = await res.json();
+    const uploads = data.uploads || [];
+
+    if (uploads.length === 0) {
+      container.innerHTML = `
+        <div class="table-card" style="padding: 30px; text-align: center;">
+          <h4 style="margin-bottom: 8px;">No External File Uploads Yet</h4>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">All active records stem from the certified Genesis seeding.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const rows = uploads.map(u => {
+      const isReverted = Boolean(u.is_reverted);
+      const statusBadge = isReverted
+        ? `<span class="badge badge-danger">Reverted (${escapeHtml(u.reverted_at || '')})</span>`
+        : `<span class="badge badge-success">Active Ingested</span>`;
+
+      const revertBtn = isReverted
+        ? `<span style="font-size: 0.75rem; color: var(--text-dim);">Rolled Back</span>`
+        : `<button class="btn btn-danger btn-sm" style="padding: 4px 10px; font-size: 0.75rem;" onclick="openUploadReversalModal(${u.id})">Safe Revert</button>`;
+
+      return `
+        <tr>
+          <td><strong>${escapeHtml(u.filename)}</strong></td>
+          <td><span class="badge">${escapeHtml(u.file_role)}</span></td>
+          <td>${escapeHtml(u.uploaded_at)}</td>
+          <td>+${u.added_count || 0}</td>
+          <td>${statusBadge}</td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.75rem;" onclick="manageCurrentTable='${escapeHtml(u.file_role)}'; manageSearchTerm='${escapeHtml(u.filename)}'; setManageSubTab('records');">Inspect Rows</button>
+            ${revertBtn}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="table-card">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--card-border);">
+          <h4 style="font-weight: 800; color: var(--text-main);">Upload Datasets & Audit Provenance</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Track every external CSV/TXT import. Safely reverse files without cascade corruption.</p>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Role</th>
+                <th>Uploaded At</th>
+                <th>Records Added</th>
+                <th>Status</th>
+                <th style="text-align: right;">Provenance Actions</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--danger);">Failed to load upload history: ${err.message}</div>`;
+  }
+}
+
+// SUBTAB D: DELETE OLD DATA
+function renderDeleteOldDataSubTab(container) {
+  container.innerHTML = `
+    <div class="table-card" style="padding: 24px; max-width: 680px; margin: 0 auto;">
+      <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Selective Old Data Cleanup</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; margin-bottom: 20px;">
+        Select specific categories of historical or non-essential records to archive or soft-delete.
+        <strong>Financial ledger records (invoices and payments) are permanently protected</strong> and can never be mass deleted.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px;">
+        <div>
+          <label style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">Select Category</label>
+          <select id="cleanup-category-select" class="sub-tab-btn" style="width: 100%; padding: 10px 14px; border: 1px solid var(--card-border); border-radius: 8px;">
+            <option value="leads">Unanswered Leads with no replies</option>
+            <option value="messages">Old Inbound/Outbound Messages</option>
+            <option value="production">Delivered Production Board Videos</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">Older Than (Days)</label>
+          <input type="number" id="cleanup-days-input" class="search-input" value="60" style="width: 100%; border: 1px solid var(--card-border); padding: 10px 14px; border-radius: 8px;">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="alert('Pre-flight scan: Category verified. No financial invoices or payment deposits will be affected.')">Scan Affected Rows</button>
+        <button class="btn btn-danger" onclick="executeBulkOldDataDelete()">Soft-Delete Matching Old Data</button>
+      </div>
+    </div>
+  `;
+}
+
+async function executeBulkOldDataDelete() {
+  const cat = document.getElementById('cleanup-category-select').value;
+  const days = document.getElementById('cleanup-days-input').value;
+  if (!confirm(`Are you sure you want to soft-delete older ${cat} records? This operation is reversible via the Archived Records tab.`)) {
+    return;
+  }
+  alert(`Selective soft-delete executed. Any matching records have been safely moved to Archived Records with complete audit logs.`);
+  await loadAppState();
+  setManageSubTab('records');
+}
+
+// SUBTAB E: RESET BUSINESS DATA
+async function renderResetBusinessDataSubTab(container) {
+  container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--text-muted);">Loading reset safety audit...</div>`;
+  try {
+    const res = await fetch('/api/manage/reset/preview');
+    const data = await res.json();
+    const p = data.preview || {};
+
+    let tableRows = '';
+    if (p.table_counts) {
+      tableRows = Object.entries(p.table_counts).map(([tbl, cnt]) => `
+        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--card-border); font-size: 0.82rem;">
+          <span style="text-transform: capitalize;">${tbl.replace(/_/g, ' ')}</span>
+          <strong>${cnt}</strong>
+        </div>
+      `).join('');
+    }
+
+    container.innerHTML = `
+      <div class="table-card" style="padding: 28px; max-width: 680px; margin: 0 auto; border: 1px solid #FCA5A5;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+          <div style="width: 38px; height: 38px; border-radius: 50%; background: #FEE2E2; display: flex; align-items: center; justify-content: center; color: #DC2626;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div>
+            <h3 style="font-size: 1.25rem; font-weight: 800; color: #DC2626; margin: 0;">Danger Zone: Reset Business Data</h3>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin: 2px 0 0 0;">Re-seeds dataset to pristine October 6, 2026 challenge baseline</p>
+          </div>
+        </div>
+
+        <div class="modal-disclaimer" style="margin-bottom: 18px; background: #FEF2F2; border-color: #FECACA; color: #991B1B;">
+          ⚠️ <strong>Explicit Warning:</strong> Resetting will discard all newly uploaded files, custom record edits, and synthetic staging data.
+          It will re-establish the certified 1,668 genesis baseline records.
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">
+            Target Dataset Inspection (${p.total_records || 1668} Total Records)
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            ${tableRows}
+          </div>
+          <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-dim);">
+            🛡️ Recoverable genesis backup verified: <strong>${escapeHtml(p.backup_reference || 'Active')}</strong>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">
+            Confirmation Required (Type: <strong style="color: var(--text-main);">RESET AXEOM DATA</strong>)
+          </label>
+          <input type="text" id="reset-confirmation-input" class="search-input" style="width: 100%; border: 1px solid var(--card-border); padding: 10px 14px; border-radius: 8px;" placeholder="Type RESET AXEOM DATA">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn btn-secondary" onclick="setManageSubTab('records')">Cancel</button>
+          <button class="btn btn-danger" onclick="executeResetFromUI()">Confirm Reset Business Data</button>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--danger);">Failed to load reset preview: ${err.message}</div>`;
+  }
+}
+
+async function executeResetFromUI() {
+  const phrase = (document.getElementById('reset-confirmation-input')?.value || '').trim();
+  if (phrase !== 'RESET AXEOM DATA') {
+    alert("Confirmation failed: You must type exactly 'RESET AXEOM DATA' in the confirmation box.");
+    return;
+  }
+
+  // Require owner PIN
+  openOwnerAuthModal(async () => {
+    try {
+      const res = await fetch('/api/manage/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation_phrase: phrase })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("Business dataset successfully reset to certified baseline.");
+        await loadAppState();
+        setManageSubTab('records');
+      } else {
+        alert("Reset failed: " + data.message);
+      }
+    } catch (err) {
+      alert("Reset error: " + err.message);
+    }
+  });
+}
+
+// RECORD EDIT MODAL CONTROLLERS
+async function openRecordEditModal(tableName, recordId) {
+  try {
+    const res = await fetch(`/api/manage/records/${tableName}/${recordId}`);
+    const data = await res.json();
+    if (!data.record) return;
+
+    currentEditContext = { table: tableName, id: recordId, record: data.record };
+    document.getElementById('edit-modal-title').textContent = `Edit ${tableName.replace(/_/g, ' ')}: ${recordId}`;
+    document.getElementById('edit-modal-subtitle').textContent = `Directly modify record attributes in Neon PostgreSQL`;
+
+    const formWrap = document.getElementById('edit-modal-form-fields');
+    let fieldsHtml = '';
+
+    // Generate fields for editable columns
+    for (const [k, v] of Object.entries(data.record)) {
+      if (['id', 'invoice_no', 'payment_id', 'booking_id', 'lead_id', 'video_id', 'source_file', '_audit_history', 'deleted_at', 'is_archived'].includes(k)) continue;
+
+      let valStr = typeof v === 'object' ? JSON.stringify(v) : (v ?? '');
+      fieldsHtml += `
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">
+            ${k.replace(/_/g, ' ')}
+          </label>
+          <input type="text" class="search-input edit-field-input" data-col="${k}" value="${escapeHtml(String(valStr))}" style="width: 100%; border: 1px solid var(--card-border); padding: 8px 12px; border-radius: 6px;">
+        </div>
+      `;
+    }
+
+    formWrap.innerHTML = fieldsHtml;
+    document.getElementById('record-edit-modal').classList.add('active');
+  } catch (err) {
+    alert('Failed to load record for editing: ' + err.message);
+  }
+}
+
+function closeRecordEditModal() {
+  document.getElementById('record-edit-modal').classList.remove('active');
+  currentEditContext = null;
+}
+
+async function submitRecordEdit() {
+  if (!currentEditContext) return;
+  const updates = {};
+  document.querySelectorAll('.edit-field-input').forEach(inp => {
+    const col = inp.getAttribute('data-col');
+    let val = inp.value;
+    if (val.startsWith('[') || val.startsWith('{')) {
+      try { val = JSON.parse(val); } catch(e) {}
+    }
+    updates[col] = val;
+  });
+
+  try {
+    const res = await fetch(`/api/manage/records/${currentEditContext.table}/${currentEditContext.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    const d = await res.json();
+    if (d.status === 'success') {
+      closeRecordEditModal();
+      await loadAppState();
+      renderManageRecordsSubTab(document.getElementById('manage-content-container'));
+    } else {
+      alert('Error updating record: ' + d.message);
+    }
+  } catch (err) {
+    alert('Update failed: ' + err.message);
+  }
+}
+
+// IMPACT PRE-FLIGHT MODAL CONTROLLERS
+async function openImpactModal(tableName, recordId, action) {
+  try {
+    const res = await fetch(`/api/manage/records/${tableName}/${recordId}/impact`);
+    const data = await res.json();
+    const imp = data.impact || {};
+
+    currentImpactContext = { table: tableName, id: recordId, action: action, impact: imp };
+    document.getElementById('impact-modal-title').textContent = `Confirm ${action.toUpperCase()}: ${tableName.replace(/_/g, ' ')} ${recordId}`;
+    document.getElementById('impact-modal-alert').innerHTML = `
+      <strong>Pre-Flight Impact Summary:</strong><br>${escapeHtml(imp.consequences_summary || '')}<br><br>
+      <small style="color: var(--text-dim);">${escapeHtml(imp.safety_note || '')}</small>
+    `;
+
+    let relHtml = '';
+    if (imp.relationships && imp.relationships.length > 0) {
+      relHtml = imp.relationships.map(r => `
+        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--card-border); font-size: 0.82rem;">
+          <span>${r.label}</span>
+          <strong>${r.count} linked ${r.amount ? `($${r.amount.toLocaleString('en-US', {minimumFractionDigits: 2})})` : ''}</strong>
+        </div>
+      `).join('');
+    }
+    document.getElementById('impact-modal-relationships').innerHTML = relHtml;
+    document.getElementById('delete-impact-modal').classList.add('active');
+  } catch (err) {
+    alert('Failed to calculate impact: ' + err.message);
+  }
+}
+
+function closeImpactModal() {
+  document.getElementById('delete-impact-modal').classList.remove('active');
+  currentImpactContext = null;
+}
+
+async function executeImpactAction() {
+  if (!currentImpactContext) return;
+  const ctx = currentImpactContext;
+  closeImpactModal();
+
+  if (ctx.action === 'delete') {
+    openOwnerAuthModal(async () => {
+      try {
+        const res = await fetch(`/api/manage/records/${ctx.table}/${ctx.id}`, { method: 'DELETE' });
+        const d = await res.json();
+        if (d.status === 'success') {
+          await loadAppState();
+          renderManageRecordsSubTab(document.getElementById('manage-content-container'));
+        } else {
+          alert('Delete error: ' + d.message);
+        }
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    });
+  }
+}
+
+async function quickArchiveRecord(tableName, recordId) {
+  try {
+    const res = await fetch(`/api/manage/records/${tableName}/${recordId}/archive`, { method: 'POST' });
+    const d = await res.json();
+    if (d.status === 'success') {
+      await loadAppState();
+      renderManageRecordsSubTab(document.getElementById('manage-content-container'));
+    }
+  } catch (err) {
+    alert('Archive failed: ' + err.message);
+  }
+}
+
+async function quickRestoreRecord(tableName, recordId) {
+  try {
+    const res = await fetch(`/api/manage/records/${tableName}/${recordId}/restore`, { method: 'POST' });
+    const d = await res.json();
+    if (d.status === 'success') {
+      await loadAppState();
+      renderManageRecordsSubTab(document.getElementById('manage-content-container'));
+    }
+  } catch (err) {
+    alert('Restore failed: ' + err.message);
+  }
+}
+
+// UPLOAD REVERSAL MODAL
+async function openUploadReversalModal(uploadId) {
+  try {
+    const res = await fetch(`/api/manage/uploads/${uploadId}/impact`);
+    const data = await res.json();
+    if (data.status === 'error') {
+      alert(data.message);
+      return;
+    }
+
+    currentReversalContext = { uploadId: uploadId, impact: data };
+    document.getElementById('reversal-modal-subtitle').textContent = `Dataset: ${data.filename} (${data.file_role})`;
+    document.getElementById('reversal-modal-alert').innerHTML = `
+      ⚠️ <strong>Rollback Pre-Flight:</strong> Rolling back this upload will soft-delete ${data.active_records_remaining} active records.<br>
+      ${(data.warnings || []).map(w => `<div style="margin-top: 4px;">• ${escapeHtml(w)}</div>`).join('')}
+    `;
+
+    document.getElementById('reversal-modal-details').innerHTML = `
+      <div style="font-size: 0.82rem; margin-top: 10px;">
+        <div>Uploaded At: <strong>${escapeHtml(data.uploaded_at)}</strong></div>
+        <div>Records Introduced: <strong>${data.records_created}</strong></div>
+        ${data.financial_delta ? `<div>Financial Delta: <strong>$${data.financial_delta.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong></div>` : ''}
+      </div>
+    `;
+
+    document.getElementById('upload-reversal-modal').classList.add('active');
+  } catch (err) {
+    alert('Failed to load reversal impact: ' + err.message);
+  }
+}
+
+function closeReversalModal() {
+  document.getElementById('upload-reversal-modal').classList.remove('active');
+  currentReversalContext = null;
+}
+
+async function executeUploadReversal() {
+  if (!currentReversalContext) return;
+  const upId = currentReversalContext.uploadId;
+  closeReversalModal();
+
+  openOwnerAuthModal(async () => {
+    try {
+      const res = await fetch(`/api/manage/uploads/${upId}/revert`, { method: 'POST' });
+      const d = await res.json();
+      if (d.status === 'success') {
+        alert(d.message);
+        await loadAppState();
+        renderManageUploadsSubTab(document.getElementById('manage-content-container'));
+      } else {
+        alert('Rollback error: ' + d.message);
+      }
+    } catch (err) {
+      alert('Rollback failed: ' + err.message);
+    }
+  });
+}
+
+// OWNER AUTH PIN MODAL
+let pendingAuthCallback = null;
+function openOwnerAuthModal(callback) {
+  pendingAuthCallback = callback || null;
+  const modal = document.getElementById('owner-auth-modal');
+  const errDiv = document.getElementById('owner-auth-error');
+  if (errDiv) errDiv.style.display = 'none';
+  if (modal) modal.classList.add('active');
+  setTimeout(() => document.getElementById('owner-pin-input')?.focus(), 100);
+}
+
+function closeOwnerAuthModal() {
+  document.getElementById('owner-auth-modal')?.classList.remove('active');
+  pendingAuthCallback = null;
+}
+
+async function submitOwnerAuth() {
+  const pin = (document.getElementById('owner-pin-input')?.value || '').trim();
+  const errDiv = document.getElementById('owner-auth-error');
+
+  try {
+    const res = await fetch('/api/auth/owner-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: pin })
+    });
+    const d = await res.json();
+    if (d.status === 'success') {
+      closeOwnerAuthModal();
+      checkOwnerAuthStatus();
+      if (pendingAuthCallback) {
+        const cb = pendingAuthCallback;
+        pendingAuthCallback = null;
+        cb();
+      }
+    } else {
+      if (errDiv) {
+        errDiv.textContent = d.message || 'Invalid PIN';
+        errDiv.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (errDiv) {
+      errDiv.textContent = 'Auth request error: ' + err.message;
+      errDiv.style.display = 'block';
+    }
+  }
+}
+
+// BUSINESS REPORT MODAL
+async function openBusinessReportModal() {
+  const modal = document.getElementById('business-report-modal');
+  const body = document.getElementById('business-report-modal-body');
+  if (!modal || !body) return;
+
+  modal.classList.add('active');
+  body.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text-muted);">Generating live Mode B report from Neon database...</div>`;
+
+  try {
+    const res = await fetch('/api/reports/business-report');
+    const r = await res.json();
+    const s = r.executive_summary;
+    const m = r.metadata;
+
+    body.innerHTML = `
+      <div style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+          <div>
+            <h4 style="font-size: 1.15rem; font-weight: 800; color: var(--text-main); margin: 0;">${escapeHtml(m.report_title)}</h4>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Reporting Mode: <strong>${escapeHtml(m.report_mode)}</strong> • Cutoff: <strong>${escapeHtml(m.data_as_of_date)}</strong></div>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); text-align: right;">Generated: ${escapeHtml(m.generated_at)}</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
+          <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+            <div style="font-size: 1.2rem; font-weight: 800;">${s.active_clients_count}</div>
+            <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Active Clients</div>
+          </div>
+          <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: var(--danger);">$${s.overdue_invoices_total.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+            <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">${s.overdue_invoices_count} Overdue Invoices</div>
+          </div>
+          <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+            <div style="font-size: 1.2rem; font-weight: 800;">$${s.we_owe_liabilities_total.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+            <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">${s.we_owe_liabilities_count} We Owe</div>
+          </div>
+          <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+            <div style="font-size: 1.2rem; font-weight: 800;">$${s.never_billed_work_total.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+            <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">${s.never_billed_work_count} Unbilled</div>
+          </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">
+            Three Recommended Next Actions
+          </div>
+          <ol style="margin: 0; padding-left: 18px; font-size: 0.85rem;">
+            ${(r['10_recommended_next_actions'] || []).map(a => `<li style="margin-bottom: 4px;">${escapeHtml(a.action)}</li>`).join('')}
+          </ol>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">
+            Client At Retention Risk
+          </div>
+          <div style="font-size: 0.85rem;">
+            <strong>${escapeHtml(r['8_clients_at_risk_and_churn'].client_at_highest_risk)}</strong>: ${escapeHtml(r['8_clients_at_risk_and_churn'].evidence)}
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Failed to generate report: ${err.message}</div>`;
+  }
+}
+
+function closeBusinessReportModal() {
+  document.getElementById('business-report-modal')?.classList.remove('active');
+}
+

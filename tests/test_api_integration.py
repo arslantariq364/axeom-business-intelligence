@@ -80,5 +80,5 @@ def test_api_export_answers(client):
     rv = client.get('/api/export-answers')
     assert rv.status_code == 200
     res = json.loads(rv.data)
-    assert res["status"] == "success"
+    assert res.get("pack_id") == "01"
     assert res["client_count"] == 29

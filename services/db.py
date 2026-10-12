@@ -25,8 +25,12 @@ DATA_DIR = Path("submission/original_data") if Path("submission/original_data").
 
 def get_database_url():
     """Returns DATABASE_URL from environment or local .env file."""
+    if os.environ.get("AXEOM_FORCE_SQLITE") == "1":
+        return None
     url = os.environ.get("DATABASE_URL")
-    if not url and os.path.exists(".env"):
+    if url == "" or url == "sqlite":
+        return None
+    if url is None and os.path.exists(".env"):
         try:
             with open(".env", "r", encoding="utf-8") as f:
                 for line in f:
@@ -41,8 +45,9 @@ def get_database_url():
 
 
 def is_postgres():
-    """Returns True if DATABASE_URL is configured."""
-    return bool(get_database_url())
+    """Returns True if DATABASE_URL is configured for PostgreSQL."""
+    url = get_database_url()
+    return bool(url and (url.startswith("postgresql://") or url.startswith("postgres://")))
 
 
 def normalize_database_url(url: str) -> str:
@@ -219,10 +224,16 @@ def clean_float(val, default=0.0):
         return default
 
 
-def init_db():
+_DB_INITIALIZED = False
+
+def init_db(force=False):
     """Idempotently initializes database tables and runs versioned migrations."""
+    global _DB_INITIALIZED
     if is_postgres():
+        if _DB_INITIALIZED and not force:
+            return
         _init_db_postgres()
+        _DB_INITIALIZED = True
     else:
         _init_db_sqlite()
 
@@ -439,6 +450,18 @@ def _init_db_postgres():
     );
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        timestamp VARCHAR(64) NOT NULL,
+        action_type VARCHAR(64) NOT NULL,
+        target_table VARCHAR(64) NOT NULL,
+        record_id VARCHAR(255),
+        details TEXT,
+        performed_by VARCHAR(64) DEFAULT 'owner'
+    );
+    """)
+
     # Check dataset revisions count
     cur.execute("SELECT COUNT(*) FROM dataset_revisions")
     if cur.fetchone()[0] == 0:
@@ -451,6 +474,8 @@ def _init_db_postgres():
             "initial_genesis_hash",
             json.dumps({"description": "Initial PostgreSQL schema migration"})
         ))
+
+    run_migrations(conn)
 
     conn.commit()
     conn.close()
@@ -656,6 +681,18 @@ def _init_db_sqlite():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        target_table TEXT NOT NULL,
+        record_id TEXT,
+        details TEXT,
+        performed_by TEXT DEFAULT 'owner'
+    )
+    """)
+
     cur.execute("SELECT COUNT(*) FROM dataset_revisions")
     if cur.fetchone()[0] == 0:
         cur.execute("""
@@ -676,20 +713,44 @@ def _init_db_sqlite():
 
 def run_migrations(conn):
     """Runs column migrations safely depending on active database dialect."""
+    cur = conn.cursor()
+    tables_to_migrate = ["clients", "leads", "invoices", "payments", "bookings", "messages", "production_board"]
+
     if is_postgres():
+        for t in tables_to_migrate:
+            try:
+                cur.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS is_archived INTEGER DEFAULT 0")
+                cur.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS deleted_at VARCHAR(64)")
+            except Exception:
+                pass
+        try:
+            cur.execute("ALTER TABLE file_uploads ADD COLUMN IF NOT EXISTS is_reverted INTEGER DEFAULT 0")
+            cur.execute("ALTER TABLE file_uploads ADD COLUMN IF NOT EXISTS reverted_at VARCHAR(64)")
+        except Exception:
+            pass
         return
 
-    cur = conn.cursor()
+    # SQLite migrations
     cur.execute("PRAGMA table_info(file_uploads)")
     existing_cols = {r[1] for r in cur.fetchall()}
-    for col in ["added_count", "updated_count", "skipped_count", "rejected_count"]:
+    for col in ["added_count", "updated_count", "skipped_count", "rejected_count", "is_reverted"]:
         if col not in existing_cols:
             cur.execute(f"ALTER TABLE file_uploads ADD COLUMN {col} INTEGER DEFAULT 0")
+    if "reverted_at" not in existing_cols:
+        cur.execute("ALTER TABLE file_uploads ADD COLUMN reverted_at TEXT")
 
     cur.execute("PRAGMA table_info(messages)")
     existing_msg_cols = {r[1] for r in cur.fetchall()}
     if "msg_hash" not in existing_msg_cols:
         cur.execute("ALTER TABLE messages ADD COLUMN msg_hash TEXT")
+
+    for t in tables_to_migrate:
+        cur.execute(f"PRAGMA table_info({t})")
+        cols = {r[1] for r in cur.fetchall()}
+        if "is_archived" not in cols:
+            cur.execute(f"ALTER TABLE {t} ADD COLUMN is_archived INTEGER DEFAULT 0")
+        if "deleted_at" not in cols:
+            cur.execute(f"ALTER TABLE {t} ADD COLUMN deleted_at TEXT")
 
 
 def get_current_revision():

@@ -397,7 +397,9 @@ def process_file_upload(filename, content_bytes):
                         INSERT INTO messages (msg_hash, line_no, msg_datetime, channel, direction, entity, body, source_file)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """, (msg_h, idx, dt, chan.strip(), direction.strip(), entity.strip(), body.strip(), filename))
-                        new_msg_id = getattr(cur, "lastrowid", None) or idx
+                        cur.execute("SELECT id FROM messages WHERE msg_hash = ?", (msg_h,))
+                        m_row = cur.fetchone()
+                        new_msg_id = m_row["id"] if m_row else (getattr(cur, "lastrowid", None) or idx)
                         new_messages_to_classify.append((new_msg_id, msg_h, body.strip()))
                         added_count += 1
                 else:

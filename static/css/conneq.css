@@ -1197,7 +1197,6 @@ table.data-table tr:hover td {
   flex-wrap: wrap;
 }
 
-
 /* Keep tab navigation and wide financial tables inside their owning pane. */
 .app-container, .main-content, .app-view, .table-card, .table-responsive,
 #money-content-container, #requests-content-container { min-width: 0; }

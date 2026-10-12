@@ -5,26 +5,27 @@ Strictly adheres to the original answers.json template schema.
 
 import os
 import json
-from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS
+from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS, get_canonical_clients
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
 
 def build_answers_json():
-    """Build the exact challenge submission JSON from the current data without writing files."""
+    """Build the exact challenge submission JSON directly from current data without file writes."""
     fin = reconcile_finances()
     req = get_requests_and_leads()
     ana = get_analytics()
 
-    # 1. Clients formatted
+    # 1. Clients formatted (using canonical client list)
+    clients_list = get_canonical_clients(include_archived=False, include_deleted=False)
     clients_formatted = []
-    for c in CANONICAL_CLIENTS:
-        other_names = sorted(list(set(a for a in c['payer_aliases'] if a != c['canonical_name'])))
+    for c in clients_list:
+        other_names = sorted(list(set(a for a in c.get('payer_aliases', []) if a != c['canonical_name'])))
         clients_formatted.append({
             "name": c['canonical_name'],
             "other_names_used_in_the_data": other_names,
-            "emails": c['emails'],
-            "phones": c['phones']
+            "emails": c.get('emails', []),
+            "phones": c.get('phones', [])
         })
 
     # 2. Payers who are not clients
@@ -98,10 +99,10 @@ def build_answers_json():
     answers = {
         "pack_id": "01",
         "your_name": "Arslan Tariq",
-        "your_email": "candidate@example.com",
-        "live_link": live_link,
+        "your_email": os.environ.get("SUBMISSION_EMAIL", "tsa6648@gmail.com"),
+        "live_link": live_link or "https://axeom-business-intelligence.vercel.app",
         "video_link": "",
-        "code_or_files_link": "",
+        "code_or_files_link": "https://github.com/arslantariq364/axeom-business-intelligence",
 
         "client_count": len(clients_formatted),
         "clients": clients_formatted,
@@ -143,14 +144,16 @@ def build_answers_json():
 
 
 def export_answers_json(target_path=None):
-    """Persist the same JSON when local scripts explicitly need an on-disk working copy."""
+    """Persists current answers to a local file when explicitly requested."""
     if target_path is None:
         db_override = os.environ.get("AXEOM_DB_PATH")
         if db_override and os.path.basename(db_override) != "axeom.db":
             target_path = f"{db_override}.answers.json"
         else:
             target_path = "answers_working.json"
+
     answers = build_answers_json()
+
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(answers, f, indent=2)
 
