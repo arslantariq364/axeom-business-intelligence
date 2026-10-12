@@ -11,6 +11,12 @@ A modern, high-reliability Business Intelligence (BI) and Operations Operating S
 
 Axeom ingests fragmented operational records—invoices, bank deposits, production boards, inbound inquiries, and multi-channel client communications—and reconciles them into actionable financial clarity and owner-directed priority actions.
 
+### 🌐 Official Project Deliverables
+- **Live Production App**: [https://axeom-business-intelligence.vercel.app](https://axeom-business-intelligence.vercel.app)
+- **Demonstration Video**: [Watch 5-Minute HD Walkthrough (Google Drive)](https://drive.google.com/file/d/10gawKb1ZWhdLixC-LrnjNLXrgM5K-m9D/view?usp=sharing)
+- **Source Code Repository**: [https://github.com/arslantariq364/axeom-business-intelligence](https://github.com/arslantariq364/axeom-business-intelligence)
+- **Pack ID**: `01` | **Candidate**: Arslan Tariq (`tsa6648@gmail.com`)
+
 ---
 
 ## 📸 Dashboard Overview
