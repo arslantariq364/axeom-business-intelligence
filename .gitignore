@@ -1,38 +1,71 @@
-# Byte-compiled / optimized / DLL files
+# =========================================
+# Axeom Operations & BI - Git Ignore Policy
+# =========================================
+
+# 1. Challenge Submission Materials (PRIVATE / LOCAL ONLY)
+submission/
+Axeom Challenge.pdf
+PACK.txt
+answers.json
+answers_working.json
+assumptions.md
+daily_log.md
+writeup.pdf
+writeup.md
+Axeom_Challenge_Pack_01_Submission.zip
+Axeom_Antigravity_Ordered_Prompts.md
+docs/live_link.txt
+docs/answer-field-map.md
+docs/submission-audit.md
+docs/demo-plan.md
+
+# 2. Proprietary Business Records
+data/*.csv
+data/*.txt
+!data/.gitkeep
+
+# 3. Local Databases & Backups
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*_backup.*
+axeom_source_review.zip
+
+# 4. Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# 5. Python Byte-compiled & Caches
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Virtual Environments
+# 6. Virtual Environments & Node Modules
 venv/
 .venv/
 env/
 ENV/
 node_modules/
 
-# Testing & Coverage
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Local Environment Variables & Secrets
-.env
-.env.local
-*.key
-*.pem
-
-# Uploaded Files Working Copies
+# 7. Upload Working Storage & Logs
 uploads/*
 !uploads/.gitkeep
+*.log
 
-# IDEs & System Metadata
+# 8. Large Bulk Test Screenshots (docs/assets/ preserved for README)
+tests/reports/screenshots/uploads/
+
+# 9. IDE & OS Metadata
 .DS_Store
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Local Backups and Temporary Review Archives
-*_backup.*
-axeom_source_review.zip
