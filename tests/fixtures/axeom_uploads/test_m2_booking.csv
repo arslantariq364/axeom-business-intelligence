@@ -1,0 +1,2 @@
+booking_id,date,client_name,email,service,status,price
+B913,15/09/2026,Summit Peak Health,drsmith@summitpeak.org,Content Day,completed,$1200

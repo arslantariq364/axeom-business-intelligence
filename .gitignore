@@ -9,6 +9,7 @@ venv/
 .venv/
 env/
 ENV/
+node_modules/
 
 # Testing & Coverage
 .pytest_cache/
@@ -31,3 +32,7 @@ uploads/*
 .vscode/
 *.swp
 *.swo
+
+# Local Backups and Temporary Review Archives
+*_backup.*
+axeom_source_review.zip

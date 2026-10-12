@@ -1,0 +1,25 @@
+# Independent Test Oracle & Expected Results Manifest
+
+**Business Reference Date:** `2026-10-06`  
+**Baseline Certified State:** 29 Clients, $9,250.00 Overdue, $2,400.00 We Owe, $2,950.00 Uninvoiced, 33 Lost Requests, 22 Unreplied Leads.
+
+---
+
+| Test ID | Test Title | Input Files | Delta / Calculation | Expected Client Count | Expected Overdue | Expected Unbilled | Expected Warnings & Behavior |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **TEST_A** | New Client Onboarding | `test_a_new_client_booking.csv` | A previously unknown client 'Zenith Dental Care' books a shoot. | **30** | **$9,250.00** | **$3,850.00** | New client detected and provisioned in directory; unbilled booking staged. |
+| **TEST_B** | Client Name Variation Matching | `test_b_client_name_variation_booking.csv` | Existing client 'Northpoint Church' appears as 'NORTHPOINT MEDIA TEAM' with matching email media@northpointdfw.org. | **29** | **$9,250.00** | **$3,250.00** | Matched alias 'NORTHPOINT MEDIA TEAM' to canonical client C01 without creating duplicate. |
+| **TEST_C** | New Overdue Invoice | `test_c_new_overdue_invoice.csv` | Unpaid invoice INV-9003 for $1,200.00 due on 2026-09-01 (35 days before 2026-10-06). | **29** | **$10,450.00** | **$2,950.00** | New overdue invoice INV-9003 added for Cedar & Stone Builders; aging calculated as 35 days late. |
+| **TEST_D** | Partial Payment Allocation | `test_d_partial_payment.csv` | Payment P9004 of $500.00 applied to INV-1104 ($1,500.00 overdue balance). | **29** | **$8,750.00** | **$2,950.00** | Partial payment applied: INV-1104 balance reduced from $1,500.00 to $1,000.00. |
+| **TEST_E** | Overpayment / Customer Credit | `test_e_overpayment.csv` | Payment P9005 of $2,000.00 for invoice INV-1120 ($1,500.00 balance). | **29** | **$7,750.00** | **$2,950.00** | Overpayment detected: $500.00 excess added to customer liability ledger (we_owe). |
+| **TEST_F** | Unbilled Work Detection | `test_f_unbilled_work_booking.csv` | Completed shoot B906 for Bloom Florals ($1,500.00) without matching invoice. | **29** | **$9,250.00** | **$4,450.00** | Unbilled shoot B906 flagged with revenue leakage alert for Bloom Florals. |
+| **TEST_G** | Lost Client Request Detection | `test_g_production_record.csv, test_g_lost_client_request.txt` | Dated client edit request for V9007 on 2026-09-22 with empty notes_on_board. | **29** | **$9,250.00** | **$2,950.00** | Lost request identified on video V9007 with source attribution to Will Carter. |
+| **TEST_H** | New Lead Tracking | `test_h_new_lead.csv` | Inbound lead L908 created on 2026-10-01 with documented response on 2026-10-01. | **29** | **$9,250.00** | **$2,950.00** | New lead L908 successfully ingested and classified as replied. |
+| **TEST_I** | Unanswered Lead Flagging | `test_i_unanswered_lead.csv` | Inbound lead L909 from Instagram DM created on 2026-10-03 with empty first_reply. | **29** | **$9,250.00** | **$2,950.00** | Lead L909 flagged as unreplied (3 days without response as of Oct 6). |
+| **TEST_J** | Duplicate File Idempotency | `test_j_duplicate_file.csv, test_j_duplicate_file.csv` | Uploading the exact same file twice. | **29** | **$9,250.00** | **$3,150.00** | Second upload returns duplicate_file with 0 added rows and identical hash match. |
+| **TEST_K** | Malformed File Validation & Rollback | `test_k_malformed_missing_columns.csv` | CSV with missing required headers and unrecognized schema. | **29** | **$9,250.00** | **$2,950.00** | HTTP 400 error returned: Unrecognized file schema; 0 rows committed to database. |
+| **TEST_L** | Mixed New and Existing Records | `test_l_mixed_records_invoices.csv` | File containing known INV-1001 and new overdue invoice INV-9012 ($800.00). | **29** | **$10,050.00** | **$2,950.00** | INV-1001 skipped (already existing); only new invoice INV-9012 added. |
+| **TEST_M** | Cross-File Consistency (End-to-End Client Lifecycle) | `test_m1_lead.csv, test_m2_booking.csv, test_m3_invoice.csv, test_m4_payment.csv` | Complete lifecycle for 'Summit Peak Health': Lead -> Booking ($1,200) -> Invoice ($1,200) -> Payment ($1,200). | **30** | **$9,250.00** | **$2,950.00** | Summit Peak Health connected across all tables; net outstanding balance is $0.00. |
+| **TEST_N** | Ambiguous Identity Differentiation | `test_n_ambiguous_identity_booking.csv` | 'Torres Tire & Auto' (Carlos Torres) vs existing 'Torres Law Firm' (Mike Torres). | **30** | **$9,250.00** | **$4,450.00** | Identity conflict guard prevents incorrect merge; Torres Tire & Auto separated from Torres Law Firm. |
+| **TEST_O** | Unknown Payer Non-Client Classification | `test_o_unknown_client_payment.csv` | Payment P9015 from 'Vanguard Holding Escrow LLC' with no client relationship. | **29** | **$9,250.00** | **$2,950.00** | Payer tracked in ledger without inflating verified client directory. |
+| **TEST_P** | Repeated Multi-Channel Client Requests | `test_p_repeated_requests.txt` | Client sends edit request on WhatsApp, then sends the identical request via Email for video V022. | **29** | **$9,250.00** | **$2,950.00** | Both communication events preserved in dossier; missing deliverable deduplicated by video ID. |

@@ -27,6 +27,10 @@ seed_db_if_empty()
 def index():
     return render_template("index.html")
 
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
+
 @app.route("/guide")
 def guide_route():
     guide_path = os.path.join(os.path.dirname(__file__), "docs", "master-guide.html")

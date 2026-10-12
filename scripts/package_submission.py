@@ -15,12 +15,12 @@ OUTPUT_ZIP = WORKSPACE / "Axeom_Challenge_Pack_01_Submission.zip"
 # Strict exclusion rules per challenge guidelines
 EXCLUDE_DIRS = {
     "__pycache__", ".pytest_cache", ".git", ".gemini", "venv", ".venv",
-    "env", "scratch", ".system_generated", "uploads"
+    "env", "scratch", ".system_generated", "uploads", "node_modules"
 }
 EXCLUDE_EXTENSIONS = {".pyc", ".pyo", ".log", ".DS_Store", ".tmp"}
 EXCLUDE_FILES = {
     ".env", "axeom_synthetic_test.db", "Axeom_Challenge_Pack_01_Submission.zip",
-    ".gitignore", ".gitkeep"
+    ".gitignore", ".gitkeep", "axeom_baseline_backup.db", "answers_template_backup.json"
 }
 
 def build_package():

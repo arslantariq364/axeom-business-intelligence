@@ -145,7 +145,7 @@ function renderTodayView() {
         </ul>
 
         <div class="hero-controls-row">
-          <button class="btn btn-primary" onclick="openActionModal('action_patel_call', 'Prepare Call Script for Patel Insurance Group', '${escapeHtml(today.hero_action.draft_script)}', 'Nina & Raj Patel (214-555-0195)')">
+          <button class="btn btn-primary" onclick="openActionModal('action_patel_call')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             Prepare reminder
           </button>
@@ -158,6 +158,7 @@ function renderTodayView() {
         </div>
       </div>
     `;
+    registerAction('action_patel_call', 'Prepare Call Script for Patel Insurance Group', today.hero_action.draft_script, 'Nina & Raj Patel (214-555-0195)');
   }
 
   // C. Next Two Actions: Compact Off-White Cards
@@ -167,6 +168,9 @@ function renderTodayView() {
     const act3 = today.monday_top_3[2];
     const dec2 = decisions['action_bill_unbilled'] || { status: 'pending' };
     const dec3 = decisions['action_collect_overdue'] || { status: 'pending' };
+
+    registerAction('action_bill_unbilled', 'Bill Unbilled Shoots & Apply Credits', act2.draft_notes, act2.contact);
+    registerAction('action_collect_overdue', 'Collect Aged Receivables & Fix Billing Tool', act3.draft_notes, act3.contact);
 
     secContainer.innerHTML = `
       <div class="action-card">
@@ -180,7 +184,7 @@ function renderTodayView() {
           <p class="action-card-desc">${act2.summary}</p>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_bill_unbilled', 'Bill Unbilled Shoots & Apply Credits', '${escapeHtml(act2.draft_notes)}', '${act2.contact}')">
+          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_bill_unbilled')">
             Review invoices & credits
           </button>
           <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
@@ -203,7 +207,7 @@ function renderTodayView() {
           <p class="action-card-desc">${act3.summary}</p>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_collect_overdue', 'Collect Aged Receivables & Fix Billing Tool', '${escapeHtml(act3.draft_notes)}', '${act3.contact}')">
+          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_collect_overdue')">
             Review collection queue
           </button>
           <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
@@ -1194,12 +1198,24 @@ async function handleFileUpload(file) {
 // -------------------------------------------------------------------------
 // 8. OWNER ACTION CONFIRMATION MODAL & PERSISTENCE
 // -------------------------------------------------------------------------
+window.actionPayloads = window.actionPayloads || {};
+
+function registerAction(actionId, title, draftText, contact) {
+  window.actionPayloads[actionId] = { title, draftText, contact };
+}
+
 let currentActionContext = null;
 
 function openActionModal(actionId, title, draftText, contact) {
+  if (window.actionPayloads && window.actionPayloads[actionId]) {
+    const payload = window.actionPayloads[actionId];
+    title = title || payload.title;
+    draftText = draftText || payload.draftText;
+    contact = contact || payload.contact;
+  }
   currentActionContext = { actionId, title, draftText, contact };
 
-  document.getElementById('modal-action-title').innerText = title;
+  document.getElementById('modal-action-title').innerText = title || 'Confirm Owner Action';
   document.getElementById('modal-action-contact').innerText = contact || 'N/A';
   document.getElementById('modal-draft-text').innerText = draftText || 'No pre-drafted script.';
   document.getElementById('modal-owner-notes').value = '';

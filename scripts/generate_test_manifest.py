@@ -1,0 +1,418 @@
+"""
+Independent Expected Results Manifest Generator for Stage 5.
+Explicit arithmetic and independently reviewed business rules.
+Outputs:
+  - tests/fixtures/test_manifest.json
+  - tests/fixtures/TEST_MANIFEST.md
+"""
+
+import json
+from pathlib import Path
+
+MANIFEST_JSON = Path("/home/arslan-tariq/Downloads/Axeom Challenge - Pack 01/tests/fixtures/test_manifest.json")
+MANIFEST_MD = Path("/home/arslan-tariq/Downloads/Axeom Challenge - Pack 01/tests/fixtures/TEST_MANIFEST.md")
+
+BASELINE_STATE = {
+    "client_count": 29,
+    "overdue_total": 9250.00,
+    "overdue_count": 9,
+    "we_owe_total": 2400.00,
+    "we_owe_count": 2,
+    "never_billed_total": 2950.00,
+    "never_billed_count": 3,
+    "discrepancies_count": 6,
+    "lost_requests_count": 33,
+    "unreplied_leads_count": 22,
+    "total_leads_count": 99
+}
+
+TEST_CASES = [
+    {
+        "test_id": "TEST_A",
+        "title": "New Client Onboarding",
+        "input_files": ["test_a_new_client_booking.csv"],
+        "description": "A previously unknown client 'Zenith Dental Care' books a shoot.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": +1,
+            "overdue_total": 0.0,
+            "never_billed_total": +900.00, # Completed booking without invoice
+            "never_billed_count": +1,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 30,
+            "overdue_total": 9250.00,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 3850.00,
+            "never_billed_count": 4,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "New client detected and provisioned in directory; unbilled booking staged."
+    },
+    {
+        "test_id": "TEST_B",
+        "title": "Client Name Variation Matching",
+        "input_files": ["test_b_client_name_variation_booking.csv"],
+        "description": "Existing client 'Northpoint Church' appears as 'NORTHPOINT MEDIA TEAM' with matching email media@northpointdfw.org.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": 0.0,
+            "never_billed_total": +300.00,
+            "never_billed_count": +1,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 9250.00,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 3250.00,
+            "never_billed_count": 4,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "Matched alias 'NORTHPOINT MEDIA TEAM' to canonical client C01 without creating duplicate."
+    },
+    {
+        "test_id": "TEST_C",
+        "title": "New Overdue Invoice",
+        "input_files": ["test_c_new_overdue_invoice.csv"],
+        "description": "Unpaid invoice INV-9003 for $1,200.00 due on 2026-09-01 (35 days before 2026-10-06).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": +1200.00,
+            "overdue_count": +1,
+            "never_billed_total": 0.0,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 10450.00,
+            "overdue_count": 10,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 2950.00,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "New overdue invoice INV-9003 added for Cedar & Stone Builders; aging calculated as 35 days late."
+    },
+    {
+        "test_id": "TEST_D",
+        "title": "Partial Payment Allocation",
+        "input_files": ["test_d_partial_payment.csv"],
+        "description": "Payment P9004 of $500.00 applied to INV-1104 ($1,500.00 overdue balance).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": -500.00,
+            "overdue_count": 0, # Invoice still partially overdue ($1,000 balance remaining)
+            "we_owe_total": 0.0,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 8750.00,
+            "overdue_count": 9,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 2950.00,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "Partial payment applied: INV-1104 balance reduced from $1,500.00 to $1,000.00."
+    },
+    {
+        "test_id": "TEST_E",
+        "title": "Overpayment / Customer Credit",
+        "input_files": ["test_e_overpayment.csv"],
+        "description": "Payment P9005 of $2,000.00 for invoice INV-1120 ($1,500.00 balance).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": -1500.00,
+            "overdue_count": -1, # Invoice fully settled
+            "we_owe_total": +500.00, # Surplus credit owed to customer
+            "we_owe_count": +1,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 7750.00,
+            "overdue_count": 8,
+            "we_owe_total": 2900.00,
+            "we_owe_count": 3,
+            "never_billed_total": 2950.00,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "Overpayment detected: $500.00 excess added to customer liability ledger (we_owe)."
+    },
+    {
+        "test_id": "TEST_F",
+        "title": "Unbilled Work Detection",
+        "input_files": ["test_f_unbilled_work_booking.csv"],
+        "description": "Completed shoot B906 for Bloom Florals ($1,500.00) without matching invoice.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": 0.0,
+            "never_billed_total": +1500.00,
+            "never_billed_count": +1,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 9250.00,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 4450.00,
+            "never_billed_count": 4,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "Unbilled shoot B906 flagged with revenue leakage alert for Bloom Florals."
+    },
+    {
+        "test_id": "TEST_G",
+        "title": "Lost Client Request Detection",
+        "input_files": ["test_g_production_record.csv", "test_g_lost_client_request.txt"],
+        "description": "Dated client edit request for V9007 on 2026-09-22 with empty notes_on_board.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": 0.0,
+            "never_billed_total": 0.0,
+            "lost_requests_count": +1,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 9250.00,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 2950.00,
+            "lost_requests_count": 34,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "Lost request identified on video V9007 with source attribution to Will Carter."
+    },
+    {
+        "test_id": "TEST_H",
+        "title": "New Lead Tracking",
+        "input_files": ["test_h_new_lead.csv"],
+        "description": "Inbound lead L908 created on 2026-10-01 with documented response on 2026-10-01.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "total_leads_count": +1,
+            "unreplied_leads_count": 0, # Responded to on same day
+            "overdue_total": 0.0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "total_leads_count": 100,
+            "unreplied_leads_count": 22,
+            "overdue_total": 9250.00
+        },
+        "expected_warnings": "New lead L908 successfully ingested and classified as replied."
+    },
+    {
+        "test_id": "TEST_I",
+        "title": "Unanswered Lead Flagging",
+        "input_files": ["test_i_unanswered_lead.csv"],
+        "description": "Inbound lead L909 from Instagram DM created on 2026-10-03 with empty first_reply.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "total_leads_count": +1,
+            "unreplied_leads_count": +1,
+            "overdue_total": 0.0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "total_leads_count": 100,
+            "unreplied_leads_count": 23,
+            "overdue_total": 9250.00
+        },
+        "expected_warnings": "Lead L909 flagged as unreplied (3 days without response as of Oct 6)."
+    },
+    {
+        "test_id": "TEST_J",
+        "title": "Duplicate File Idempotency",
+        "input_files": ["test_j_duplicate_file.csv", "test_j_duplicate_file.csv"],
+        "description": "Uploading the exact same file twice.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": 0.0,
+            "never_billed_total": +200.00, # 1st upload adds B910
+            "never_billed_count": +1,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "never_billed_total": 3150.00,
+            "never_billed_count": 4,
+            "overdue_total": 9250.00
+        },
+        "expected_warnings": "Second upload returns duplicate_file with 0 added rows and identical hash match."
+    },
+    {
+        "test_id": "TEST_K",
+        "title": "Malformed File Validation & Rollback",
+        "input_files": ["test_k_malformed_missing_columns.csv"],
+        "description": "CSV with missing required headers and unrecognized schema.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": 0.0,
+            "never_billed_total": 0.0,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": BASELINE_STATE,
+        "expected_warnings": "HTTP 400 error returned: Unrecognized file schema; 0 rows committed to database."
+    },
+    {
+        "test_id": "TEST_L",
+        "title": "Mixed New and Existing Records",
+        "input_files": ["test_l_mixed_records_invoices.csv"],
+        "description": "File containing known INV-1001 and new overdue invoice INV-9012 ($800.00).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0,
+            "overdue_total": +800.00,
+            "overdue_count": +1,
+            "never_billed_total": 0.0,
+            "lost_requests_count": 0,
+            "unreplied_leads_count": 0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 10050.00,
+            "overdue_count": 10,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 2950.00,
+            "lost_requests_count": 33,
+            "unreplied_leads_count": 22
+        },
+        "expected_warnings": "INV-1001 skipped (already existing); only new invoice INV-9012 added."
+    },
+    {
+        "test_id": "TEST_M",
+        "title": "Cross-File Consistency (End-to-End Client Lifecycle)",
+        "input_files": ["test_m1_lead.csv", "test_m2_booking.csv", "test_m3_invoice.csv", "test_m4_payment.csv"],
+        "description": "Complete lifecycle for 'Summit Peak Health': Lead -> Booking ($1,200) -> Invoice ($1,200) -> Payment ($1,200).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": +1,
+            "total_leads_count": +1,
+            "unreplied_leads_count": 0,
+            "overdue_total": 0.0, # Invoice fully settled by payment
+            "never_billed_total": 0.0 # Booking has matching invoice
+        },
+        "expected_state": {
+            "client_count": 30,
+            "total_leads_count": 100,
+            "overdue_total": 9250.00,
+            "we_owe_total": 2400.00,
+            "never_billed_total": 2950.00
+        },
+        "expected_warnings": "Summit Peak Health connected across all tables; net outstanding balance is $0.00."
+    },
+    {
+        "test_id": "TEST_N",
+        "title": "Ambiguous Identity Differentiation",
+        "input_files": ["test_n_ambiguous_identity_booking.csv"],
+        "description": "'Torres Tire & Auto' (Carlos Torres) vs existing 'Torres Law Firm' (Mike Torres).",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": +1, # Distinct client
+            "never_billed_total": +1500.00,
+            "never_billed_count": +1
+        },
+        "expected_state": {
+            "client_count": 30,
+            "overdue_total": 9250.00,
+            "never_billed_total": 4450.00
+        },
+        "expected_warnings": "Identity conflict guard prevents incorrect merge; Torres Tire & Auto separated from Torres Law Firm."
+    },
+    {
+        "test_id": "TEST_O",
+        "title": "Unknown Payer Non-Client Classification",
+        "input_files": ["test_o_unknown_client_payment.csv"],
+        "description": "Payment P9015 from 'Vanguard Holding Escrow LLC' with no client relationship.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "client_count": 0, # Not added as a client
+            "overdue_total": 0.0
+        },
+        "expected_state": {
+            "client_count": 29,
+            "overdue_total": 9250.00
+        },
+        "expected_warnings": "Payer tracked in ledger without inflating verified client directory."
+    },
+    {
+        "test_id": "TEST_P",
+        "title": "Repeated Multi-Channel Client Requests",
+        "input_files": ["test_p_repeated_requests.txt"],
+        "description": "Client sends edit request on WhatsApp, then sends the identical request via Email for video V022.",
+        "initial_state": BASELINE_STATE,
+        "delta": {
+            "lost_requests_count": 0 # V022 already in lost requests baseline; no double counting
+        },
+        "expected_state": {
+            "lost_requests_count": 33,
+            "client_count": 29
+        },
+        "expected_warnings": "Both communication events preserved in dossier; missing deliverable deduplicated by video ID."
+    }
+]
+
+manifest = {
+    "manifest_version": "1.0",
+    "reference_date": "2026-10-06",
+    "baseline_state": BASELINE_STATE,
+    "test_cases": TEST_CASES
+}
+
+with open(MANIFEST_JSON, "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+
+print(f"Generated test manifest JSON: {MANIFEST_JSON.name}")
+
+# Generate Markdown documentation
+md_lines = [
+    "# Independent Test Oracle & Expected Results Manifest",
+    "",
+    "**Business Reference Date:** `2026-10-06`  ",
+    "**Baseline Certified State:** 29 Clients, $9,250.00 Overdue, $2,400.00 We Owe, $2,950.00 Uninvoiced, 33 Lost Requests, 22 Unreplied Leads.",
+    "",
+    "---",
+    "",
+    "| Test ID | Test Title | Input Files | Delta / Calculation | Expected Client Count | Expected Overdue | Expected Unbilled | Expected Warnings & Behavior |",
+    "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+]
+
+for tc in TEST_CASES:
+    md_lines.append(
+        f"| **{tc['test_id']}** | {tc['title']} | `{', '.join(tc['input_files'])}` | "
+        f"{tc['description']} | **{tc['expected_state']['client_count']}** | "
+        f"**${tc['expected_state'].get('overdue_total', BASELINE_STATE['overdue_total']):,.2f}** | "
+        f"**${tc['expected_state'].get('never_billed_total', BASELINE_STATE['never_billed_total']):,.2f}** | "
+        f"{tc['expected_warnings']} |"
+    )
+
+with open(MANIFEST_MD, "w", encoding="utf-8") as f:
+    f.write("\n".join(md_lines))
+
+print(f"Generated test manifest Markdown: {MANIFEST_MD.name}")

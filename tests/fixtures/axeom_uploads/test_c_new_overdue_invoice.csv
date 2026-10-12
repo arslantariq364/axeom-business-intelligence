@@ -1,0 +1,2 @@
+invoice_no,bill_to,email,issued,due,amount,status,memo
+INV-9003,Cedar & Stone Builders,will@cedarstone.build,2026-08-15,2026-09-01,1200.00,unpaid,Site Walkthrough Video

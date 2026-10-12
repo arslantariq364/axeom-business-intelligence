@@ -1,0 +1,167 @@
+[
+  {
+    "test_id": "TEST_A",
+    "title": "New Client Onboarding",
+    "input_files": [
+      "test_a_new_client_booking.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_a_new_client_booking.csv' as role 'bookings'. Added: 1, Updated: 0, Skipped: 0. Detected Role: bookings • Ro"
+  },
+  {
+    "test_id": "TEST_B",
+    "title": "Client Name Variation Matching",
+    "input_files": [
+      "test_b_client_name_variation_booking.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_b_client_name_variation_booking.csv' as role 'bookings'. Added: 1, Updated: 0, Skipped: 0. Detected Role: bo"
+  },
+  {
+    "test_id": "TEST_C",
+    "title": "New Overdue Invoice",
+    "input_files": [
+      "test_c_new_overdue_invoice.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_c_new_overdue_invoice.csv' as role 'invoices'. Added: 1, Updated: 0, Skipped: 0. Detected Role: invoices • R"
+  },
+  {
+    "test_id": "TEST_D",
+    "title": "Partial Payment Allocation",
+    "input_files": [
+      "test_d_partial_payment.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_d_partial_payment.csv' as role 'payments'. Added: 1, Updated: 0, Skipped: 0. Detected Role: payments • Rows "
+  },
+  {
+    "test_id": "TEST_E",
+    "title": "Overpayment / Customer Credit",
+    "input_files": [
+      "test_e_overpayment.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_e_overpayment.csv' as role 'payments'. Added: 1, Updated: 0, Skipped: 0. Detected Role: payments • Rows Proc"
+  },
+  {
+    "test_id": "TEST_F",
+    "title": "Unbilled Work Detection",
+    "input_files": [
+      "test_f_unbilled_work_booking.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_f_unbilled_work_booking.csv' as role 'bookings'. Added: 1, Updated: 0, Skipped: 0. Detected Role: bookings •"
+  },
+  {
+    "test_id": "TEST_G",
+    "title": "Lost Client Request Detection",
+    "input_files": [
+      "test_g_production_record.csv",
+      "test_g_lost_client_request.txt"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_g_lost_client_request.txt' as role 'messages'. Added: 1, Updated: 0, Skipped: 0. Detected Role: messages • R"
+  },
+  {
+    "test_id": "TEST_H",
+    "title": "New Lead Tracking",
+    "input_files": [
+      "test_h_new_lead.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_h_new_lead.csv' as role 'leads'. Added: 1, Updated: 0, Skipped: 0. Detected Role: leads • Rows Processed: un"
+  },
+  {
+    "test_id": "TEST_I",
+    "title": "Unanswered Lead Flagging",
+    "input_files": [
+      "test_i_unanswered_lead.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_i_unanswered_lead.csv' as role 'leads'. Added: 1, Updated: 0, Skipped: 0. Detected Role: leads • Rows Proces"
+  },
+  {
+    "test_id": "TEST_J",
+    "title": "Duplicate File Idempotency",
+    "input_files": [
+      "test_j_duplicate_file.csv",
+      "test_j_duplicate_file.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_j_duplicate_file.csv' as role 'bookings'. Added: 1, Updated: 0, Skipped: 0. Detected Role: bookings • Rows P"
+  },
+  {
+    "test_id": "TEST_K",
+    "title": "Malformed File Validation & Rollback",
+    "input_files": [
+      "test_k_malformed_missing_columns.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "❌ Ingestion Error Could not determine valid schema or role for 'test_k_malformed_missing_columns.csv'."
+  },
+  {
+    "test_id": "TEST_L",
+    "title": "Mixed New and Existing Records",
+    "input_files": [
+      "test_l_mixed_records_invoices.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_l_mixed_records_invoices.csv' as role 'invoices'. Added: 1, Updated: 0, Skipped: 1. Detected Role: invoices "
+  },
+  {
+    "test_id": "TEST_M",
+    "title": "Cross-File Consistency (End-to-End Client Lifecycle)",
+    "input_files": [
+      "test_m1_lead.csv",
+      "test_m2_booking.csv",
+      "test_m3_invoice.csv",
+      "test_m4_payment.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_m4_payment.csv' as role 'payments'. Added: 1, Updated: 0, Skipped: 0. Detected Role: payments • Rows Process"
+  },
+  {
+    "test_id": "TEST_N",
+    "title": "Ambiguous Identity Differentiation",
+    "input_files": [
+      "test_n_ambiguous_identity_booking.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_n_ambiguous_identity_booking.csv' as role 'bookings'. Added: 1, Updated: 0, Skipped: 0. Detected Role: booki"
+  },
+  {
+    "test_id": "TEST_O",
+    "title": "Unknown Payer Non-Client Classification",
+    "input_files": [
+      "test_o_unknown_client_payment.csv"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_o_unknown_client_payment.csv' as role 'payments'. Added: 1, Updated: 0, Skipped: 0. Detected Role: payments "
+  },
+  {
+    "test_id": "TEST_P",
+    "title": "Repeated Multi-Channel Client Requests",
+    "input_files": [
+      "test_p_repeated_requests.txt"
+    ],
+    "status": "PASS",
+    "error_details": null,
+    "upload_status_message": "✅ File Ingestion Succeeded Imported 'test_p_repeated_requests.txt' as role 'messages'. Added: 2, Updated: 0, Skipped: 0. Detected Role: messages • Row"
+  }
+]

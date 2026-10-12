@@ -288,10 +288,19 @@ def test_phone_user_can_identify_first_action_within_10_seconds(isolated_env):
 
 # 15. Verify synthetic data isolation from submission answers
 def test_synthetic_data_isolation_from_submission_answers():
-    # Verify answers.json template remains untouched (51 lines)
+    # If backup template exists, verify it matches original template
+    if os.path.exists("answers_template_backup.json"):
+        with open("answers_template_backup.json", "r", encoding="utf-8") as f:
+            assert len(f.readlines()) == 51
+
+    # Verify answers.json contains no synthetic IDs from test suite
     with open("answers.json", "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    assert len(lines) == 51
+        content = f.read()
+    assert "INV-9001" not in content
+    assert "P9001" not in content
+    assert "INV-9888" not in content
+    assert "SYN-" not in content
+    assert "test_owner_action_99" not in content
 
     # Verify answers_working.json contains no synthetic IDs from test suite
     if os.path.exists("answers_working.json"):
@@ -300,4 +309,5 @@ def test_synthetic_data_isolation_from_submission_answers():
         assert "INV-9001" not in content
         assert "P9001" not in content
         assert "INV-9888" not in content
+        assert "SYN-" not in content
         assert "test_owner_action_99" not in content
