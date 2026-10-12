@@ -10,13 +10,8 @@ from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
 
-def export_answers_json(target_path=None):
-    if target_path is None:
-        db_override = os.environ.get("AXEOM_DB_PATH")
-        if db_override and os.path.basename(db_override) != "axeom.db":
-            target_path = f"{db_override}.answers.json"
-        else:
-            target_path = "answers_working.json"
+def build_answers_json():
+    """Build the exact challenge submission JSON from the current data without writing files."""
     fin = reconcile_finances()
     req = get_requests_and_leads()
     ana = get_analytics()
@@ -144,6 +139,18 @@ def export_answers_json(target_path=None):
         "monday_top_3": [a['summary'] for a in ana['monday_top_3']]
     }
 
+    return answers
+
+
+def export_answers_json(target_path=None):
+    """Persist the same JSON when local scripts explicitly need an on-disk working copy."""
+    if target_path is None:
+        db_override = os.environ.get("AXEOM_DB_PATH")
+        if db_override and os.path.basename(db_override) != "axeom.db":
+            target_path = f"{db_override}.answers.json"
+        else:
+            target_path = "answers_working.json"
+    answers = build_answers_json()
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(answers, f, indent=2)
 
