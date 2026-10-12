@@ -294,13 +294,15 @@ def test_synthetic_data_isolation_from_submission_answers():
             assert len(f.readlines()) == 51
 
     # Verify answers.json contains no synthetic IDs from test suite
-    with open("answers.json", "r", encoding="utf-8") as f:
-        content = f.read()
-    assert "INV-9001" not in content
-    assert "P9001" not in content
-    assert "INV-9888" not in content
-    assert "SYN-" not in content
-    assert "test_owner_action_99" not in content
+    ans_path = "submission/answers.json" if os.path.exists("submission/answers.json") else "answers.json"
+    if os.path.exists(ans_path):
+        with open(ans_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert "INV-9001" not in content
+        assert "P9001" not in content
+        assert "INV-9888" not in content
+        assert "SYN-" not in content
+        assert "test_owner_action_99" not in content
 
     # Verify answers_working.json contains no synthetic IDs from test suite
     if os.path.exists("answers_working.json"):

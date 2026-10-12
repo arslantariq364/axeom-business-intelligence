@@ -14,8 +14,16 @@ import datetime
 from pathlib import Path
 from services.db import get_db, clean_float, get_current_revision
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR_ENV = os.environ.get("AXEOM_UPLOAD_DIR")
+if UPLOAD_DIR_ENV:
+    UPLOAD_DIR = Path(UPLOAD_DIR_ENV)
+else:
+    try:
+        UPLOAD_DIR = Path("uploads")
+        UPLOAD_DIR.mkdir(exist_ok=True)
+    except OSError:
+        UPLOAD_DIR = Path("/tmp/axeom_uploads")
+        UPLOAD_DIR.mkdir(exist_ok=True)
 
 MAX_UPLOAD_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB limit
 
@@ -113,11 +121,14 @@ def process_file_upload(filename, content_bytes):
     role = detect_file_role(filename, text)
     now_iso = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Save physical audit copy
-    audit_filename = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
-    audit_path = UPLOAD_DIR / audit_filename
-    with open(audit_path, "wb") as f:
-        f.write(content_bytes)
+    # Save physical audit copy if filesystem allows (serverless fallback)
+    try:
+        audit_filename = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
+        audit_path = UPLOAD_DIR / audit_filename
+        with open(audit_path, "wb") as f:
+            f.write(content_bytes)
+    except OSError:
+        pass
 
     if role == "unknown":
         return {

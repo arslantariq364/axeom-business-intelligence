@@ -91,9 +91,13 @@ def export_answers_json(target_path=None):
     # 8. Unreplied leads
     unreplied_lead_ids = [l['lead_id'] for l in req['unreplied_leads']]
 
-    live_link = ""
-    if os.path.exists("docs/live_link.txt"):
-        live_link = open("docs/live_link.txt", encoding="utf-8").read().strip()
+    live_link = os.environ.get("LIVE_LINK", "")
+    if not live_link:
+        for lp in ["submission/live_link.txt", "docs/live_link.txt"]:
+            if os.path.exists(lp):
+                live_link = open(lp, encoding="utf-8").read().strip()
+                if live_link:
+                    break
 
     # 9. Complete answers dictionary
     answers = {
@@ -142,5 +146,10 @@ def export_answers_json(target_path=None):
 
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(answers, f, indent=2)
+
+    # Also keep submission/ directory synchronized if present
+    if target_path == "answers_working.json" and os.path.isdir("submission"):
+        with open("submission/answers_working.json", "w", encoding="utf-8") as sf:
+            json.dump(answers, sf, indent=2)
 
     return answers

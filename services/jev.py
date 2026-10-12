@@ -575,11 +575,20 @@ def _save_cache(conn, cache_key, input_hash, result, result_source="deterministi
         cur = conn.cursor()
         now_iso = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur.execute("""
-        INSERT OR REPLACE INTO jev_cache (
+        INSERT INTO jev_cache (
             cache_key, model_version, prompt_hash, response_json, created_at,
             result_source, provider_model, app_question_version, input_hash
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(cache_key) DO UPDATE SET
+            model_version = excluded.model_version,
+            prompt_hash = excluded.prompt_hash,
+            response_json = excluded.response_json,
+            created_at = excluded.created_at,
+            result_source = excluded.result_source,
+            provider_model = excluded.provider_model,
+            app_question_version = excluded.app_question_version,
+            input_hash = excluded.input_hash
         """, (
             cache_key, PROVIDER_MODEL, input_hash, json.dumps(result), now_iso,
             result_source, provider_model, APP_QUESTION_VERSION, input_hash

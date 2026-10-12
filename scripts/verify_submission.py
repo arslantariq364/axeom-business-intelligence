@@ -69,6 +69,10 @@ def verify_zip(zip_path):
             print(f"  ✅ Archive is clean: zero secrets, virtualenvs, bytecodes, or test artifacts.")
 
 if __name__ == "__main__":
-    verify_json(WORKSPACE / "answers.json")
-    verify_json(WORKSPACE / "answers_working.json")
-    verify_zip(WORKSPACE / "Axeom_Challenge_Pack_01_Submission.zip")
+    answers_path = WORKSPACE / "submission" / "answers.json" if (WORKSPACE / "submission" / "answers.json").exists() else WORKSPACE / "answers.json"
+    working_path = WORKSPACE / "submission" / "answers_working.json" if (WORKSPACE / "submission" / "answers_working.json").exists() else WORKSPACE / "answers_working.json"
+    zip_path = WORKSPACE / "submission" / "Axeom_Challenge_Pack_01_Submission.zip" if (WORKSPACE / "submission" / "Axeom_Challenge_Pack_01_Submission.zip").exists() else WORKSPACE / "Axeom_Challenge_Pack_01_Submission.zip"
+    
+    verify_json(answers_path)
+    verify_json(working_path)
+    verify_zip(zip_path)

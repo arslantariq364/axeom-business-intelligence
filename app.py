@@ -20,8 +20,33 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
 # Ensure database is initialized and seeded
-init_db()
-seed_db_if_empty()
+if not os.environ.get("VERCEL"):
+    init_db()
+    seed_db_if_empty()
+else:
+    try:
+        init_db()
+    except Exception:
+        pass
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    return response
+
+@app.errorhandler(500)
+def handle_internal_error(e):
+    return jsonify({"status": "error", "message": "An internal server error occurred."}), 500
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"status": "error", "message": "Endpoint not found."}), 404
+    return render_template("index.html"), 404
 
 @app.route("/")
 def index():
