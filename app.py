@@ -357,7 +357,9 @@ def manage_reset_route():
     phrase = data.get("confirmation_phrase") or data.get("phrase", "")
     res = execute_reset(phrase)
     if res.get("status") == "error":
-        return jsonify(res), 400
+        # 409 = valid request rejected because verified restore capability is absent.
+        code = 400 if "Invalid confirmation phrase" in res.get("message", "") else 409
+        return jsonify(res), code
     return jsonify(res)
 
 @app.route("/api/manage/audit-logs")
