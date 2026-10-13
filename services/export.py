@@ -5,13 +5,15 @@ Strictly adheres to the original answers.json template schema.
 
 import os
 import json
-from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS, get_canonical_clients
+from services.identity import get_canonical_clients, get_third_party_payers
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
 
 def build_answers_json():
     """Build the exact challenge submission JSON directly from current data without file writes."""
+    from services.db import is_dataset_cleared
+    fresh_workspace = is_dataset_cleared()
     fin = reconcile_finances()
     req = get_requests_and_leads()
     ana = get_analytics()
@@ -30,7 +32,7 @@ def build_answers_json():
 
     # 2. Payers who are not clients
     payers_formatted = []
-    for p in THIRD_PARTY_PAYERS:
+    for p in get_third_party_payers():
         payers_formatted.append({
             "name": p['name'],
             "pays_for": p['pays_for']
@@ -119,8 +121,8 @@ def build_answers_json():
         "billing_tool_is_wrong": discrepancies_formatted,
 
         "lost_requests": lost_formatted,
-        "lost_requests_root_causes": [r['title'] + ": " + r['desc'] for r in req['root_causes']],
-        "lost_requests_started_getting_worse_in": req['deterioration']['month'],
+        "lost_requests_root_causes": [] if fresh_workspace else [r['title'] + ": " + r['desc'] for r in req['root_causes']],
+        "lost_requests_started_getting_worse_in": "" if fresh_workspace else req['deterioration']['month'],
 
         "never_replied_leads": unreplied_lead_ids,
 
