@@ -185,7 +185,7 @@ function renderTodayView() {
         <h3 class="hero-action-headline">Call Nina & Raj Patel (${escapeHtml(today.hero_action.client)})</h3>
 
         <div class="hero-impact-pill">
-          💰 At Risk: ${escapeHtml(today.hero_action.retainer_value)} + Overdue Invoice ${escapeHtml(today.hero_action.overdue_invoice)}
+          💰 Retainer at Risk: ${escapeHtml(today.hero_action.retainer_value)}${today.hero_action.overdue_invoice ? ` • Overdue: ${escapeHtml(today.hero_action.overdue_invoice)}` : ""}
         </div>
 
         <ul class="hero-bullet-list">
@@ -197,10 +197,7 @@ function renderTodayView() {
             <span class="hero-bullet-dot">2.</span>
             <span>Client angry over missing regulatory branding on <em>'teen driver tips'</em> (V088, V121).</span>
           </li>
-          <li class="hero-bullet-item">
-            <span class="hero-bullet-dot">3.</span>
-            <span>Invoice INV-1122 ($2,500) withheld 21 days late (mirrors Meridian Wealth churn).</span>
-          </li>
+          ${today.hero_action.overdue_invoice ? `<li class="hero-bullet-item"><span class="hero-bullet-dot">3.</span><span>Review current balance: ${escapeHtml(today.hero_action.overdue_invoice)}.</span></li>` : `<li class="hero-bullet-item"><span class="hero-bullet-dot">3.</span><span>Invoice INV-1122 is no longer in the overdue queue. Focus on the client relationship.</span></li>`}
         </ul>
 
         <div class="hero-controls-row">
