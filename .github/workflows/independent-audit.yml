@@ -26,3 +26,35 @@ jobs:
         run: python -m compileall -q app.py services tests/test_audit_regressions.py
       - name: Run independent audit tests using temporary isolated SQLite files
         run: python -m pytest tests/test_audit_regressions.py -v --disable-warnings --maxfail=1
+
+  postgres-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: axeomtest
+          POSTGRES_PASSWORD: axeomtest
+          POSTGRES_DB: axeomtest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U axeomtest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AXEOM_FORCE_SQLITE: "0"
+      AXEOM_POSTGRES_SMOKE: "1"
+      DATABASE_URL: "postgresql://axeomtest:axeomtest@127.0.0.1:5432/axeomtest"
+      TYPESAFE_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Smoke test real PostgreSQL dialect (ephemeral, not Neon)
+        run: python -m pytest tests/test_postgres_smoke.py -v --disable-warnings --maxfail=1
