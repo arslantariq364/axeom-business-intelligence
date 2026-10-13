@@ -1,4 +1,6 @@
-# Axeom — Final Production Deployment & Cloud Architecture Report
+# Axeom — Historical Production Deployment & Cloud Architecture Report
+
+> **Independent audit update (2026-10-13):** Deployment checks below do not establish that uploaded data drives all business KPIs. A separate repair branch addresses stale financial, marketing, request, and client-directory metrics. Retest the deployed code and live Neon state before claiming full readiness.
 
 **Auditor & Lead DevOps / QA Engineer:** GPT-6 Astra (Senior DevOps Engineer, PostgreSQL Database Architect, Backend Engineer & Security Lead)  
 **Date:** October 12, 2026  
@@ -11,7 +13,7 @@
 
 ## 1. Executive Summary
 
-The **Axeom Studio Business Intelligence and Operations Dashboard** has successfully achieved 100% production readiness, live cloud deployment on **Vercel**, and high-performance serverless connection to **Neon PostgreSQL**.
+The **Axeom Studio Business Intelligence and Operations Dashboard** was deployed on **Vercel** with **Neon PostgreSQL**. **Correction (2026-10-13):** the former 100% readiness claim was not justified by independent end-to-end upload and data consistency tests. This document records historical deployment checks, not a completed correctness audit.
 
 All sixteen deployment and verification requirements have been completed:
 1. **Repository Sanitization:** All credentials, challenge materials, writeups, PDFs, and proprietary CSVs are strictly isolated in local private storage (`submission/`) and `.gitignore`.
