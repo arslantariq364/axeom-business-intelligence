@@ -776,7 +776,7 @@ def get_current_revision():
     conn.close()
     if row:
         return {"revision_id": row["revision_id"], "created_at": row["created_at"], "source": row["source_filename"]}
-    return {"revision_id": 1, "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "source": "system"}
+    return {"revision_id": 0 if is_dataset_cleared() else 1, "created_at": None, "source": "cleared" if is_dataset_cleared() else "system"}
 
 
 def get_recent_uploads(limit=10):
