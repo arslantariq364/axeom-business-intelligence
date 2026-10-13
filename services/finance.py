@@ -51,6 +51,16 @@ def reconcile_finances():
 
     conn.close()
 
+    from services.db import is_dataset_cleared
+    new_workspace = is_dataset_cleared()
+    if new_workspace and not invoices and not payments and not bookings:
+        return {
+            "overdue": [], "overdue_total": 0.0,
+            "we_owe": [], "we_owe_total": 0.0,
+            "never_billed": [], "never_billed_total": 0.0,
+            "discrepancies": [], "client_financials": {}
+        }
+
     inv_by_no = {r['invoice_no']: r for r in invoices}
     inv_paid_amount = defaultdict(float)
 
@@ -93,20 +103,20 @@ def reconcile_finances():
     }
 
     pay_by_id = {p['payment_id']: p for p in payments}
-    for pid, inv_no in manual_pay_map.items():
+    for pid, inv_no in ({} if new_workspace else manual_pay_map).items():
         if pid in pay_by_id and pay_by_id[pid]['reference'].strip() != inv_no:
             inv_paid_amount[inv_no] += float(pay_by_id[pid]['amount'])
 
     # 3. Brightline batch payments
-    inv_paid_amount['INV-1061'] += 900.0
-    inv_paid_amount['INV-1080'] += 900.0
-    inv_paid_amount['INV-1100'] += 900.0
-    inv_paid_amount['INV-1110'] += 900.0
-
-    # 4. Tasha Green August sessions (P5110 = $900 applied to INV-1093, INV-1103, INV-1106)
-    inv_paid_amount['INV-1093'] += 300.0
-    inv_paid_amount['INV-1103'] += 300.0
-    inv_paid_amount['INV-1106'] += 300.0
+    if not new_workspace:
+        # Original challenge-only allocations; never fabricate funds in new datasets.
+        inv_paid_amount['INV-1061'] += 900.0
+        inv_paid_amount['INV-1080'] += 900.0
+        inv_paid_amount['INV-1100'] += 900.0
+        inv_paid_amount['INV-1110'] += 900.0
+        inv_paid_amount['INV-1093'] += 300.0
+        inv_paid_amount['INV-1103'] += 300.0
+        inv_paid_amount['INV-1106'] += 300.0
 
     # Overdue and discrepancies
     overdue_list = []
@@ -201,6 +211,8 @@ def reconcile_finances():
             "why": "Client paid $1,500.00 on invoice INV-1135 for shoot B148 scheduled for 2026-09-24, which was cancelled due to a family emergency (WhatsApp 2026-09-24). Axeom subsequently billed and collected another $1,500.00 on INV-1143 for rescheduled shoot B152 without crediting the prepaid session."
         }
     ]
+    if new_workspace:
+        we_owe_list = []
     we_owe_total = sum(w['amount'] for w in we_owe_list)
 
     # Never billed completed work
@@ -233,6 +245,8 @@ def reconcile_finances():
             "evidence": "Shoot B144 completed on 2026-09-18 ($1,500 price). Verified no matching invoice issued in invoices.csv."
         }
     ]
+    if new_workspace:
+        never_billed_list = []
     never_billed_total = sum(n['amount'] for n in never_billed_list)
 
 
