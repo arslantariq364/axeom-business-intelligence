@@ -2,7 +2,7 @@
 
 **As-of Reference Date**: October 6, 2026  
 **Dataset Reference**: Pack 01 (`PACK.txt`)  
-**Scope**: Complete financial reconciliation, operational audit, client churn evaluation, marketing efficiency analysis, and immediate owner action plan.
+**Scope**: Historical October 6 financial reconciliation, operational audit, client churn evaluation, lead conversion analysis, and owner actions. This document is an as-of snapshot, not a live-dashboard report; use /api/state for current values.
 
 ---
 
@@ -20,7 +20,7 @@
 | **Request Failure Inflection Month** | **`2026-08`** | ISO Year-Month (`YYYY-MM`) | Complaints doubled in August (6) following Sam's hire (July 20), peaking in Sept (13). |
 | **Unreplied Incoming Leads** | **22** | Abandoned lead records | Inbound inquiries with empty `first_reply` in `leads.csv` (including Nina Patel L097). |
 | **Highest Churn Risk Client** | **Patel Insurance Group** | $2,500/mo retainer client | Nina Patel contract review request unreplied; Raj Patel angry over branding; $2.5k withheld. |
-| **Most Profitable Marketing Channel** | **Website form** | Acquisition channel | Generated highest gross profit ($11,424.70) at 61.0% margin; Referral had top conv (71.4%). |
+| **Most Profitable Marketing Channel** | **Not established** | Profit attribution | Prior Website profit and conversion claims were inconsistent; dynamic lead conversion only is currently defensible (Section 7). |
 
 ---
 
@@ -241,29 +241,43 @@ Owner must call Nina and Raj Patel personally first thing Monday morning (2026-1
 
 ---
 
-## 7. Marketing Channel Profitability & Blind Spots
+## 7. Marketing Lead Conversion: Verified vs. Unverified
 
-### 7.1 Channel Financial Audit
+**Correction (October 13, 2026).** Earlier versions of this document incorrectly
+described Website form as the most profitable channel and attributed invoice,
+payment, delivery cost and gross-profit totals to acquisition sources without
+a traceable lead-to-invoice join. The finance estimates and 9-of-20 Website
+conversions are **withdrawn** and must not be reused in answers or demos.
 
-| Channel | Inbound Leads | Converted Clients | Conversion Rate | Invoiced Revenue | Collected Cash | Delivery Costs (Studio + Editor) | Realized Gross Profit | Gross Margin |
-|---|---|---|---|---|---|---|---|---|
-| **Website form** | 20 | 9 | **45.0%** | $19,940.00 | $18,740.00 | $7,315.30 | **$11,424.70** | **61.0%** |
-| **Google** | 15 | 4 | **26.7%** | $24,250.00 | $17,600.00 | $7,856.70 | **$9,743.30** | **55.4%** |
-| **Instagram** | 18 | 6 | **33.3%** | $30,600.00 | $21,300.00 | $12,690.40 | **$8,609.60** | **40.4%** |
-| **Referral** | 7 | 5 | **71.4%** | $32,100.00 | $16,800.00 | $11,892.50 | **$4,907.50** | **29.2%** |
-| **LinkedIn** | 12 | 1 | **8.3%** | $7,500.00 | $5,000.00 | $2,508.00 | **$2,492.00** | **49.8%** |
-| **Meta ad** | 27 | 7 | **25.9%** | $32,000.00 | $14,900.00 | $12,633.00 | **$2,267.00** | **15.2%** |
+### 7.1 What the current application calculates
 
-### 7.2 Determination: `best_marketing_channel`
-- **Primary Selection**: **`Website form`**
-- **Rationale**: Website form delivers the highest absolute gross profit ($11,424.70) and highest gross margin (61.0%) across all channels, converting 45.0% of incoming leads with virtually zero collection lag ($18,740 collected of $19,940 invoiced). While Referral delivers a higher conversion rate (71.4%, 5/7 leads, $32,100 invoiced), Website form provides scalable organic acquisition without partner commission dependencies. In contrast, Meta ads acquired the highest lead volume (27 leads) but suffered low conversion (25.9%), severe collection delays, and razor-thin gross profit ($2,267.00, 15.2% margin before subtracting ad spend).
+The application groups active `leads` by normalized `source`, counts a
+conversion only where the lead status is `Won` or `Converted`, and recomputes
+the counts after uploads or record changes. The previous audit reported that
+only **5 of 20 Website form leads** were marked Won, not nine. The actual
+counts for the live dataset must be checked using `/api/state`.
+
+The recommended channel is now a **lead-conversion-rate recommendation**
+among sources with a reasonable sample (at least five leads), rather than a
+claim about net profits. The response explicitly returns
+`profitability_verified: false` and null values for unproven revenue and
+profit attribution. The owner should not interpret null as zero revenue.
+
+### 7.2 What is still needed for channel profitability
+
+A defensible profit comparison requires evidence-backed lead-to-client
+matching, attribution across renamed businesses and agency payers, invoice
+and collection allocations, job-specific fulfillment costs, and external ad
+spend. Until those joins are verified, "most profitable channel" is
+**not determined** by the available data.
 
 ### 7.3 Data Blind Spots (`what_this_data_cannot_tell_us`)
-1. **Advertising Expenditure & True CAC**: The dataset records studio time ($40/hr) and editor wages in `costs.csv`, but contains zero advertising spend data (Meta ad budgets, Google PPC spend, LinkedIn campaign costs). True customer acquisition cost (CAC) and net marketing ROI cannot be computed.
-2. **Offline Communications & Verbal Agreements**: Several messages in `messages.txt` reference phone calls or in-person studio discussions; verbal agreements regarding shoot reschedules, verbal approvals, or payment arrangements are unrecorded.
-3. **Long-Term Client LTV Beyond 6 Months**: All transaction records span exclusively from April 2026 to October 2026. Annual client retention, repeat booking rates beyond six months, and seasonal demand cannot be observed.
-4. **Third-Party Agency Billing Terms**: Brightline Marketing LLC pays on behalf of multiple medical clients (Greenway Pediatrics, Summit Chiropractic), but the contractual markup, agency fee agreement, or service level commitments between Axeom and Brightline are undocumented.
-5. **Fixed Studio Operating Overheads**: Beyond hourly studio rate allocations, fixed monthly overheads (facility lease, utilities, equipment depreciation, cloud software subscriptions, insurance) are omitted from the data.
+
+1. Ad campaign spend and true CAC are not available.
+2. Some phone and in-person agreements are undocumented.
+3. Longer-term retention beyond the observed data window is unknown.
+4. Agency billing and allocation terms must be reviewed.
+5. Fixed studio overhead is incomplete.
 
 ---
 
