@@ -183,12 +183,13 @@ def test_missing_columns_invalid_dates_and_bad_amounts_produce_useful_errors(iso
     )
     data_bad = {'file': (io.BytesIO(bad_amt_csv.encode('utf-8')), 'invoices_bad_amt.csv')}
     resp_bad = client.post('/api/upload', data=data_bad, content_type='multipart/form-data')
-    assert resp_bad.status_code == 200
-    # Amount safely sanitized to 0.0
+    assert resp_bad.status_code == 400
+    assert resp_bad.get_json()["rejected"] == 1
+    # Invalid money must never enter the database as a fictitious $0 invoice.
     conn = get_db()
     row = conn.execute("SELECT amount FROM invoices WHERE invoice_no = 'INV-9999'").fetchone()
     conn.close()
-    assert row["amount"] == 0.0
+    assert row is None
 
 # 9. Updates and overlapping snapshots follow documented semantics
 def test_updates_and_overlapping_snapshots_follow_documented_semantics(isolated_env):

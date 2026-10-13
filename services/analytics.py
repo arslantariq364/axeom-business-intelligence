@@ -24,72 +24,8 @@ CHURN_ANALYSIS = {
     )
 }
 
-MARKETING_CHANNELS = {
-    "recommended_channel": "Website form",
-    "why": "Website form delivers the highest absolute gross profit ($11,424.70) and highest gross margin (61.0%) across all channels, converting 45.0% of incoming leads (9 of 20) with near-zero collection friction ($18,740.00 collected of $19,940.00 invoiced). While Referral delivers a higher conversion rate (71.4%, 5/7 leads, $32,100 invoiced), Website form provides scalable organic acquisition without dependency on partner commissions or ad spend. In contrast, Meta ads generated 27 leads but suffered low conversion (25.9%), severe collection delays, and razor-thin gross profit ($2,267.00, 15.2% margin before ad spend).",
-    "channels": [
-        {
-            "name": "Website form",
-            "leads": 20,
-            "converted": 9,
-            "conversion_rate": "45.0%",
-            "revenue_invoiced": 19940.0,
-            "cash_collected": 18740.0,
-            "production_cost": 7315.30,
-            "gross_profit": 11424.70,
-            "gross_margin": "61.0%",
-            "status": "⭐ Top Profitable Channel"
-        },
-        {
-            "name": "Referral",
-            "leads": 7,
-            "converted": 5,
-            "conversion_rate": "71.4%",
-            "revenue_invoiced": 32100.0,
-            "cash_collected": 28650.0,
-            "production_cost": 12150.0,
-            "gross_profit": 16500.0,
-            "gross_margin": "57.6%",
-            "status": "High Ticket / High Trust"
-        },
-        {
-            "name": "Meta ads",
-            "leads": 27,
-            "converted": 7,
-            "conversion_rate": "25.9%",
-            "revenue_invoiced": 14900.0,
-            "cash_collected": 9850.0,
-            "production_cost": 7583.0,
-            "gross_profit": 2267.0,
-            "gross_margin": "15.2%",
-            "status": "Low Conversion / Collection Friction"
-        },
-        {
-            "name": "Google search",
-            "leads": 18,
-            "converted": 5,
-            "conversion_rate": "27.8%",
-            "revenue_invoiced": 8200.0,
-            "cash_collected": 6700.0,
-            "production_cost": 3400.0,
-            "gross_profit": 3300.0,
-            "gross_margin": "49.3%",
-            "status": "Moderate Efficiency"
-        },
-        {
-            "name": "Walk-in / Direct",
-            "leads": 12,
-            "converted": 3,
-            "conversion_rate": "25.0%",
-            "revenue_invoiced": 4500.0,
-            "cash_collected": 4500.0,
-            "production_cost": 1800.0,
-            "gross_profit": 2700.0,
-            "gross_margin": "60.0%",
-            "status": "Local Studio Foot Traffic"
-        }
-    ]
-}
+# Marketing conversion metrics are computed from leads inside get_analytics().
+# Historical marketing-profit estimates were withdrawn after independent audit.
 
 LIMITATIONS = [
     {
@@ -155,9 +91,121 @@ MONDAY_TOP_3 = [
 ]
 
 def get_analytics():
+    """Business intelligence derived from current stored records, not fixed KPIs."""
+    from collections import defaultdict
+    from copy import deepcopy
+    from services.db import get_db
+    from services.finance import reconcile_finances
+
+    fin = reconcile_finances()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT source, status FROM leads WHERE deleted_at IS NULL")
+    leads = [dict(row) for row in cur.fetchall()]
+    conn.close()
+
+    totals = defaultdict(lambda: {"leads": 0, "converted": 0})
+    for lead in leads:
+        label = str(lead.get("source") or "Unknown").strip()
+        normalized = {
+            "website": "Website form", "website form": "Website form",
+            "referral": "Referral", "meta ads": "Meta ads",
+            "facebook": "Meta ads", "google search": "Google search",
+            "google": "Google search", "walk-in": "Walk-in / Direct",
+            "walk-in / direct": "Walk-in / Direct", "direct": "Walk-in / Direct"
+        }.get(label.lower(), label)
+        totals[normalized]["leads"] += 1
+        if str(lead.get("status") or "").strip().lower() in {"won", "converted"}:
+            totals[normalized]["converted"] += 1
+
+    channels = []
+    for name, row in sorted(totals.items()):
+        count, won = row["leads"], row["converted"]
+        channels.append({
+            "name": name, "leads": count, "converted": won,
+            "conversion_rate": f"{100 * won / count:.1f}%" if count else "0.0%",
+            "revenue_invoiced": None, "cash_collected": None,
+            "production_cost": None, "gross_profit": None,
+            "gross_margin": None, "status": "Profit not verified"
+        })
+
+    # Prefer a meaningful sample to avoid picking a 1-of-1 lead source.
+    eligible = [c for c in channels if c["leads"] >= 5] or channels
+    best = max(eligible, key=lambda c: (
+        c["converted"] / c["leads"] if c["leads"] else 0,
+        c["converted"], c["leads"]
+    ), default=None)
+    best_name = best["name"] if best else "Insufficient lead data"
+    why = (
+        f"{best_name} has the highest recorded lead-to-Won conversion rate "
+        f"among channels with at least five leads ({best['converted']} of "
+        f"{best['leads']}, {best['conversion_rate']}). "
+        "This is a LEAD-CONVERSION recommendation, NOT proof of highest "
+        "gross profit: lead-to-invoice attribution and channel-specific "
+        "acquisition costs are not established in the available records."
+        if best else "No eligible lead records are available."
+    )
+    marketing = {
+        "recommended_channel": best_name, "why": why,
+        "channels": channels, "profitability_verified": False
+    }
+
+    churn = deepcopy(CHURN_ANALYSIS)
+    actions = deepcopy(MONDAY_TOP_3)
+    patel = next((item for item in fin["overdue"] if item["invoice"] == "INV-1122"), None)
+    if patel:
+        churn["overdue_invoice"] = (
+            f"INV-1122 (${patel['amount_owed']:,.2f}, {patel['days_late']} days overdue)"
+        )
+        actions[0]["financial_impact"] = (
+            f"$2,500/mo retainer + ${patel['amount_owed']:,.2f} overdue"
+        )
+    else:
+        churn["overdue_invoice"] = ""
+        churn["evidence"] = [
+            line for line in churn["evidence"]
+            if "Payment withholding:" not in line
+        ]
+        churn["what_to_do_this_week"] = (
+            "Contact Nina and Raj Patel about unresolved branding corrections and "
+            "the unanswered contract inquiry. Verify the video fixes before claiming "
+            "completion. INV-1122 is not currently in the overdue queue."
+        )
+        actions[0]["title"] = "Resolve Patel Contract Risk & Branding Issues"
+        actions[0]["summary"] = churn["what_to_do_this_week"]
+        actions[0]["financial_impact"] = "$2,500/mo retainer at churn risk; no overdue INV-1122"
+        actions[0]["draft_notes"] = churn["what_to_do_this_week"]
+
+    unbilled_total = fin["never_billed_total"]
+    credits_total = fin["we_owe_total"]
+    actions[1]["title"] = f"Review ${unbilled_total:,.2f} Potential Unbilled Work & Credits"
+    actions[1]["financial_impact"] = (
+        f"${unbilled_total:,.2f} potential unbilled / ${credits_total:,.2f} client credits"
+    )
+    unbilled_summary = ", ".join(
+        f"{b['booking_id_or_month']} (${b['amount']:,.2f})" for b in fin["never_billed"][:8]
+    ) or "none currently identified"
+    actions[1]["summary"] = (
+        f"Review completed, potentially unbilled bookings: {unbilled_summary}. "
+        f"Check retainer coverage before invoicing. Reconcile ${credits_total:,.2f} in credits."
+    )
+    actions[1]["draft_notes"] = actions[1]["summary"]
+
+    outstanding = [item for item in fin["overdue"] if item["invoice"] != "INV-1122"]
+    aged_total = sum(item["amount_owed"] for item in outstanding)
+    actions[2]["title"] = f"Follow Up on ${aged_total:,.2f} Other Overdue Receivables"
+    actions[2]["financial_impact"] = (
+        f"${aged_total:,.2f} overdue across {len(outstanding)} invoices"
+    )
+    actions[2]["summary"] = (
+        f"Follow up on {len(outstanding)} remaining overdue invoices totaling "
+        f"${aged_total:,.2f}. Check payment allocation and correct billing discrepancies "
+        "before sending any messages. Nothing is sent automatically."
+    )
+    actions[2]["draft_notes"] = actions[2]["summary"]
     return {
-        "churn": CHURN_ANALYSIS,
-        "marketing": MARKETING_CHANNELS,
+        "churn": churn,
+        "marketing": marketing,
         "limitations": LIMITATIONS,
-        "monday_top_3": MONDAY_TOP_3
+        "monday_top_3": actions
     }

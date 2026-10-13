@@ -3,6 +3,7 @@ Operational audit for Axeom Studio: lost edit requests and unanswered leads.
 """
 
 from services.db import get_db
+import re
 
 LOST_REQUESTS = [
     {
@@ -276,12 +277,52 @@ def get_requests_and_leads():
     # Filter out lost requests if the underlying production video was soft-deleted
     cur.execute("SELECT video_id FROM production_board WHERE deleted_at IS NOT NULL")
     deleted_video_ids = {r[0] for r in cur.fetchall()}
+    cur.execute("SELECT video_id, client, notes_on_board FROM production_board WHERE deleted_at IS NULL")
+    board = {r["video_id"]: dict(r) for r in cur.fetchall()}
+    cur.execute("""SELECT msg_datetime, channel, entity, body, source_file
+                   FROM messages WHERE deleted_at IS NULL""")
+    messages = [dict(r) for r in cur.fetchall()]
     conn.close()
 
     active_lost_requests = [
         lr for lr in LOST_REQUESTS
-        if lr.get("video_id") not in deleted_video_ids
+        if lr.get("video_id") in board and lr.get("video_id") not in deleted_video_ids
     ]
+    # Additional uploaded messages are inspected for explicitly named videos and
+    # actionable change requests that are absent from their production board.
+    # Do not infer missing edits from generic praise, meetings or old audit messages.
+    known = {(r["video_id"], r["request_date"]) for r in active_lost_requests}
+    markers = re.compile(
+        r"\b(?:please|change|edit|fix|revise|revision|trim|cut|remove|replace|"
+        r"captions?|subtitles?|font|typo|audio|logo|wrong|missing|swap)\b", re.I)
+    video_token = re.compile(r"\bV\d{2,6}\b", re.I)
+    for msg in messages:
+        if str(msg.get("source_file") or "").lower() == "messages.txt":
+            continue
+        body = str(msg.get("body") or "")
+        if not markers.search(body):
+            continue
+        request_day = str(msg.get("msg_datetime") or "")[:10]
+        for video_id in set(m.group(0).upper() for m in video_token.finditer(body)):
+            ticket = board.get(video_id)
+            if ticket is None or (video_id, request_day) in known:
+                continue
+            board_notes = str(ticket.get("notes_on_board") or "").strip()
+            if board_notes:
+                continue  # Manual-review only: cannot prove missing from non-empty notes.
+            active_lost_requests.append({
+                "video_id": video_id,
+                "request_date": request_day,
+                "came_by": str(msg.get("channel") or "uploaded message").lower(),
+                "client": ticket.get("client") or msg.get("entity") or "",
+                "why_it_was_lost": (
+                    f"Imported {msg.get('channel') or 'message'} on {request_day} requests "
+                    f"a change to {video_id}, but its production-board notes are empty. "
+                    f"Source message: {body[:240]}"
+                ),
+                "verification": "automated_candidate_needs_owner_review"
+            })
+            known.add((video_id, request_day))
 
     unreplied = [l for l in leads if not l.get('first_reply') or not l['first_reply'].strip()]
     replied = [l for l in leads if l.get('first_reply') and l['first_reply'].strip()]
