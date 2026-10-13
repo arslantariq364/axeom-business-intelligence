@@ -14,6 +14,41 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAppState();
 });
 
+// Generate a real browser download. The server returns a JSON attachment.
+function downloadAnswersJson() {
+  const link = document.createElement('a');
+  link.href = '/api/export-answers';
+  link.download = 'answers.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function updateDashboardLabels() {
+  if (!appState) return;
+  const m = appState.metrics || {};
+  const display = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = String(value);
+  };
+  const cash = n => Number(n || 0).toLocaleString('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
+  display('nav-money-badge', cash(m.overdue_total) + ' Due');
+  display('nav-client-badge', m.client_count ?? appState.clients?.length ?? 0);
+  display('nav-requests-badge', (m.lost_requests_count ?? 0) + ' Lost');
+  display('client-directory-summary', `${m.client_count ?? appState.clients?.length ?? 0} listed clients and ${appState.third_party_payers?.length ?? 0} separate third-party payers`);
+  const select = document.getElementById('client-filter-select');
+  if (select?.options?.length) select.options[0].text = `All Clients (${m.client_count ?? appState.clients?.length ?? 0})`;
+  const money = [['overdue', cash(m.overdue_total)], ['we_owe', cash(m.we_owe_total)], ['never_billed', cash(m.never_billed_total)], ['discrepancies', m.discrepancies_count ?? 0]];
+  for (const [tab, count] of money) {
+    const node = document.querySelector(`#money-sub-tabs [data-subtab="${tab}"]`);
+    if (node) node.textContent = ({overdue: 'Overdue Payments', we_owe: 'Refunds & Credits Owed', never_billed: 'Uninvoiced Work', discrepancies: 'Billing Tool Errors'}[tab]) + ` (${count})`;
+  }
+  for (const [tab, count, label] of [['lost', m.lost_requests_count, 'Lost Edit Requests'], ['leads', m.unreplied_leads_count, 'Unanswered Leads']]) {
+    const node = document.querySelector(`#requests-sub-tabs [data-subtab="${tab}"]`);
+    if (node) node.textContent = `${label} (${count ?? 0})`;
+  }
+}
+
 // Load main application state from backend
 async function loadAppState() {
   try {
@@ -86,6 +121,8 @@ function initNavigation() {
 
 function switchView(viewName) {
   currentView = viewName;
+  const heading = document.getElementById('active-view-heading');
+  if (heading) heading.textContent = 'AXEOM • ' + ({today:'Today',money:'Money & Invoices',clients:'Clients',requests:'Requests & Leads',history:'Client History',evidence:'Source Evidence',upload:'Add New Files'}[viewName] || 'Today');
   window.location.hash = viewName;
 
   // Update active view heading dynamically
@@ -1291,6 +1328,7 @@ async function handleFileUpload(file) {
           <div style="font-size: 0.78rem; color: var(--text-muted);">
             Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
           </div>
+          ${(result.errors || []).length ? '<ul>' + result.errors.map(e => '<li>' + escapeHtml(e) + '</li>').join('') + '</ul>' : ''}
         </div>
       `;
     } else {
