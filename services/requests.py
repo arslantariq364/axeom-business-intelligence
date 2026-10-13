@@ -295,7 +295,7 @@ def get_requests_and_leads():
     markers = re.compile(
         r"\b(?:please|change|edit|fix|revise|revision|trim|cut|remove|replace|"
         r"captions?|subtitles?|font|typo|audio|logo|wrong|missing|swap)\b", re.I)
-    video_token = re.compile(r"\bV\\d{2,6}\b", re.I)
+    video_token = re.compile(r"\bV\d{2,6}\b", re.I)
     for msg in messages:
         if str(msg.get("source_file") or "").lower() == "messages.txt":
             continue
