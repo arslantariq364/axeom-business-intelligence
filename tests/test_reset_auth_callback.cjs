@@ -18,8 +18,8 @@ const vm = require('node:vm');
     document, console, window: {},
     setTimeout: (fn) => fn(),
     fetch: async (path) => {
-      assert.equal(path, '/api/auth/owner-session');
-      return { json: async () => ({ status: 'success' }) };
+      assert.ok(['/api/auth/owner-session', '/api/auth/owner-status'].includes(path));
+      return { json: async () => ({ status: 'success', is_authorized: true }) };
     },
     alert: () => { throw Error('Unexpected alert') }
   });
