@@ -284,8 +284,10 @@ def get_requests_and_leads():
     messages = [dict(r) for r in cur.fetchall()]
     conn.close()
 
+    from services.db import is_dataset_cleared
+    legacy_requests = [] if is_dataset_cleared() else LOST_REQUESTS
     active_lost_requests = [
-        lr for lr in LOST_REQUESTS
+        lr for lr in legacy_requests
         if lr.get("video_id") in board and lr.get("video_id") not in deleted_video_ids
     ]
     # Additional uploaded messages are inspected for explicitly named videos and
