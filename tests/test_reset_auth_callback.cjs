@@ -15,7 +15,7 @@ const vm = require('node:vm');
     getElementById: (id) => elements[id] || null
   };
   const context = vm.createContext({
-    document, console,
+    document, console, window: {},
     setTimeout: (fn) => fn(),
     fetch: async (path) => {
       assert.equal(path, '/api/auth/owner-session');
