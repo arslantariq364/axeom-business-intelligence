@@ -286,7 +286,7 @@ def get_requests_and_leads():
 
     active_lost_requests = [
         lr for lr in LOST_REQUESTS
-        if lr.get("video_id") not in deleted_video_ids
+        if lr.get("video_id") in board and lr.get("video_id") not in deleted_video_ids
     ]
     # Additional uploaded messages are inspected for explicitly named videos and
     # actionable change requests that are absent from their production board.
