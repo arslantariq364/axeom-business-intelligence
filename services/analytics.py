@@ -90,16 +90,18 @@ MONDAY_TOP_3 = [
     }
 ]
 
-def get_analytics():
+def get_analytics(fin=None):
     """Business intelligence derived from current stored records, not fixed KPIs."""
     from collections import defaultdict
     from copy import deepcopy
     from services.db import get_db
-    from services.finance import reconcile_finances
+
+    if fin is None:
+        from services.finance import reconcile_finances
+        fin = reconcile_finances()
 
     from services.db import is_dataset_cleared
     if is_dataset_cleared():
-        fin = reconcile_finances()
         conn = get_db()
         try:
             cur = conn.cursor()
@@ -155,7 +157,6 @@ def get_analytics():
             "monday_top_3": actions
         }
 
-    fin = reconcile_finances()
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT source, status FROM leads WHERE deleted_at IS NULL")

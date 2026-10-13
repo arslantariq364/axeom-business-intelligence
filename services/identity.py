@@ -327,147 +327,36 @@ def get_third_party_payers():
         conn.close()
 
 
-def resolve_client_by_name(name):
-    from services.db import is_dataset_cleared
-    if is_dataset_cleared():
-        candidates = get_canonical_clients()
-        value = str(name or "").strip().lower()
-        for client in candidates:
-            aliases = [client["canonical_name"]] + client.get("payer_aliases", [])
-            if value and value in {str(alias).lower() for alias in aliases}:
-                return client
-        return None
+try:
+    from flask import g, has_request_context
+except ImportError:
+    has_request_context = lambda: False
+    g = None
 
-    if not name:
-        return None
-    name_clean = name.strip()
-    name_lower = name_clean.lower()
-    
-    # Check canonical name exact or in aliases
-    for c in CANONICAL_CLIENTS:
-        if c['canonical_name'].lower() == name_lower:
-            return c
-        for a in c['payer_aliases']:
-            if a.lower() == name_lower:
-                return c
-            
-    # Substring checks for prominent matches
-    if "patel" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C12")
-    if "sarah khan" in name_lower or "khan dental" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C04")
-    if "imran" in name_lower or "auto spa" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C24")
-    if "family law" in name_lower or "aisha" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C18")
-    if "lonestar rg" in name_lower or "lonestar realty group" in name_lower or "whitfield" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C28")
-    if "dana" in name_lower or "lone star realty" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C20")
-    if "tlc" in name_lower or "angela price" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C29")
-    if "mikes roofing" in name_lower or "mike's roofing" in name_lower or "delgado" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C07")
-    if "prime roofing" in name_lower or "russo" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C25")
-    if "meridian" in name_lower or "paul grant" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C08")
-    if "northpoint" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C01")
-    if "hustle" in name_lower or "tasha" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C02")
-    if "founders" in name_lower or "ethan" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C03")
-    if "glow" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C10")
-    if "bloom" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C11")
-    if "apex" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C13")
-    if "crown" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C14")
-    if "oak lane" in name_lower or "oaklane" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C15")
-    if "brew lab" in name_lower or "brewlab" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C16")
-    if "ironclad" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C17")
-    if "elevate" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C19")
-    if "harbor" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C21")
-    if "sage" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C22")
-    if "vega" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C23")
-    if "greenway" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C26")
-    if "summit" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C27")
-    if "luna" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C09")
-    if "cedarstone" in name_lower or "cedar stone" in name_lower or "william vance" in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C05")
-    if ("torres law" in name_lower or "mike torres" in name_lower) and "tire" not in name_lower and "auto" not in name_lower:
-        return next(c for c in CANONICAL_CLIENTS if c['id'] == "C06")
 
-    return None
+_MODULE_LOOKUPS = None
+_MODULE_CANONICAL_CLIENTS = {}
 
-def resolve_client(name=None, email=None, phone=None):
-    """
-    Evidence-backed multi-signal client resolver.
-    Matches by exact email, exact phone, or verified name/alias.
-    Guards against false merges between similar names with conflicting contact evidence.
-    """
-    from services.db import is_dataset_cleared
-    if is_dataset_cleared():
-        candidates = get_canonical_clients()
-        value = str(name or "").strip().lower()
-        email_value = str(email or "").strip().lower()
-        for client in candidates:
-            aliases = [client["canonical_name"]] + client.get("payer_aliases", [])
-            if value and value in {str(alias).lower() for alias in aliases}:
-                return client
-            if email_value and email_value in {str(addr).lower() for addr in client.get("emails", [])}:
-                return client
-        return None
-    clean_email = email.strip().lower() if email else ""
-    clean_phone = "".join(filter(str.isdigit, str(phone))) if phone else ""
-    clean_name = name.strip() if name else ""
-
-    # 1. Contact Signal Resolution (Highest fidelity)
-    if clean_email:
-        for c in CANONICAL_CLIENTS:
-            for ce in c["emails"]:
-                if ce.lower() == clean_email:
-                    return c
-    if clean_phone and len(clean_phone) >= 7:
-        for c in CANONICAL_CLIENTS:
-            for cp in c["phones"]:
-                cp_digits = "".join(filter(str.isdigit, cp))
-                if cp_digits == clean_phone:
-                    return c
-
-    # 2. Name / Alias Resolution
-    if clean_name:
-        matched = resolve_client_by_name(clean_name)
-        if matched:
-            # Conflict Guard: If contact was provided and conflicts with matched canonical client, reject merge
-            if clean_email and not any(ce.lower() == clean_email for ce in matched["emails"]):
-                domain = clean_email.split("@")[-1] if "@" in clean_email else ""
-                matched_domains = [ce.split("@")[-1].lower() for ce in matched["emails"] if "@" in ce]
-                if domain and matched_domains and domain not in matched_domains:
-                    return None
-            return matched
-
-    return None
-
+def invalidate_identity_caches():
+    global _MODULE_LOOKUPS, _MODULE_CANONICAL_CLIENTS
+    _MODULE_LOOKUPS = None
+    _MODULE_CANONICAL_CLIENTS.clear()
 
 def get_canonical_clients(include_archived=True, include_deleted=False):
     """
     Returns clients from database with their aliases and contacts.
     If database query fails or table is uninitialized, returns CANONICAL_CLIENTS.
+    Reuses fetched client list within the active request context for high performance.
     """
+    cache_key = f"_canonical_clients_{include_archived}_{include_deleted}"
+    if has_request_context() and hasattr(g, cache_key):
+        return getattr(g, cache_key)
+
+    global _MODULE_CANONICAL_CLIENTS
+    tuple_key = (include_archived, include_deleted)
+    if not has_request_context() and tuple_key in _MODULE_CANONICAL_CLIENTS:
+        return _MODULE_CANONICAL_CLIENTS[tuple_key]
+
     try:
         from services.db import get_db
         conn = get_db()
@@ -517,8 +406,185 @@ def get_canonical_clients(include_archived=True, include_deleted=False):
                     "is_archived": int(rd.get("is_archived") or 0),
                     "deleted_at": rd.get("deleted_at")
                 })
+            if has_request_context():
+                setattr(g, cache_key, result)
+            else:
+                _MODULE_CANONICAL_CLIENTS[tuple_key] = result
             return result
     except Exception:
         pass
 
-    return []
+    res = []
+    if has_request_context():
+        setattr(g, cache_key, res)
+    else:
+        _MODULE_CANONICAL_CLIENTS[tuple_key] = res
+    return res
+
+
+def _get_client_lookup_structures():
+    """Builds and caches client lookup indexes for O(1) matching."""
+    if has_request_context() and hasattr(g, "_client_lookup_idx"):
+        return g._client_lookup_idx
+
+    global _MODULE_LOOKUPS
+    if not has_request_context() and _MODULE_LOOKUPS is not None:
+        return _MODULE_LOOKUPS
+
+    from services.db import is_dataset_cleared
+    cleared = is_dataset_cleared()
+    if cleared:
+        candidates = get_canonical_clients()
+    else:
+        candidates = get_canonical_clients()
+        if not candidates:
+            candidates = CANONICAL_CLIENTS
+
+    name_map = {}
+    email_map = {}
+    phone_map = {}
+
+    for c in candidates:
+        name_map[str(c["canonical_name"]).strip().lower()] = c
+        for alias in c.get("payer_aliases", []):
+            name_map[str(alias).strip().lower()] = c
+        for em in c.get("emails", []):
+            email_map[str(em).strip().lower()] = c
+        for ph in c.get("phones", []):
+            digits = "".join(filter(str.isdigit, str(ph)))
+            if digits:
+                phone_map[digits] = c
+
+    structs = {
+        "cleared": cleared,
+        "candidates": candidates,
+        "name_map": name_map,
+        "email_map": email_map,
+        "phone_map": phone_map
+    }
+    if has_request_context():
+        g._client_lookup_idx = structs
+    else:
+        _MODULE_LOOKUPS = structs
+    return structs
+
+
+def resolve_client_by_name(name):
+    if not name:
+        return None
+    name_clean = str(name).strip()
+    name_lower = name_clean.lower()
+
+    structs = _get_client_lookup_structures()
+    # 1. Exact match against canonical name or aliases (O(1) in-memory lookup)
+    matched = structs["name_map"].get(name_lower)
+    if matched:
+        return matched
+
+    if structs["cleared"]:
+        return None
+
+    # Substring checks for prominent matches in legacy dataset
+    for c in structs["candidates"]:
+        cid = c.get("id")
+        if "patel" in name_lower and cid == "C12":
+            return c
+        if ("sarah khan" in name_lower or "khan dental" in name_lower) and cid == "C04":
+            return c
+        if ("imran" in name_lower or "auto spa" in name_lower) and cid == "C24":
+            return c
+        if ("family law" in name_lower or "aisha" in name_lower) and cid == "C18":
+            return c
+        if ("lonestar rg" in name_lower or "lonestar realty group" in name_lower or "whitfield" in name_lower) and cid == "C28":
+            return c
+        if ("dana" in name_lower or "lone star realty" in name_lower) and cid == "C20":
+            return c
+        if ("tlc" in name_lower or "angela price" in name_lower) and cid == "C29":
+            return c
+        if ("mikes roofing" in name_lower or "mike's roofing" in name_lower or "delgado" in name_lower) and cid == "C07":
+            return c
+        if ("prime roofing" in name_lower or "russo" in name_lower) and cid == "C25":
+            return c
+        if ("meridian" in name_lower or "paul grant" in name_lower) and cid == "C08":
+            return c
+        if "northpoint" in name_lower and cid == "C01":
+            return c
+        if ("hustle" in name_lower or "tasha" in name_lower) and cid == "C02":
+            return c
+        if ("founders" in name_lower or "ethan" in name_lower) and cid == "C03":
+            return c
+        if "glow" in name_lower and cid == "C10":
+            return c
+        if "bloom" in name_lower and cid == "C11":
+            return c
+        if "apex" in name_lower and cid == "C13":
+            return c
+        if "crown" in name_lower and cid == "C14":
+            return c
+        if ("oak lane" in name_lower or "oaklane" in name_lower) and cid == "C15":
+            return c
+        if ("brew lab" in name_lower or "brewlab" in name_lower) and cid == "C16":
+            return c
+        if "ironclad" in name_lower and cid == "C17":
+            return c
+        if "elevate" in name_lower and cid == "C19":
+            return c
+        if "harbor" in name_lower and cid == "C21":
+            return c
+        if "sage" in name_lower and cid == "C22":
+            return c
+        if "vega" in name_lower and cid == "C23":
+            return c
+        if "greenway" in name_lower and cid == "C26":
+            return c
+        if "summit" in name_lower and cid == "C27":
+            return c
+        if "luna" in name_lower and cid == "C09":
+            return c
+        if ("cedarstone" in name_lower or "cedar stone" in name_lower or "william vance" in name_lower) and cid == "C05":
+            return c
+        if ("torres law" in name_lower or "mike torres" in name_lower) and "tire" not in name_lower and "auto" not in name_lower and cid == "C06":
+            return c
+
+    return None
+
+
+def resolve_client(name=None, email=None, phone=None):
+    """
+    Evidence-backed multi-signal client resolver.
+    Matches by exact email, exact phone, or verified name/alias using cached O(1) indexes.
+    Guards against false merges between similar names with conflicting contact evidence.
+    """
+    clean_email = email.strip().lower() if email else ""
+    clean_phone = "".join(filter(str.isdigit, str(phone))) if phone else ""
+    clean_name = name.strip() if name else ""
+
+    structs = _get_client_lookup_structures()
+
+    # 1. Contact Signal Resolution (Highest fidelity, O(1) hash map)
+    if clean_email and clean_email in structs["email_map"]:
+        return structs["email_map"][clean_email]
+
+    if clean_phone and len(clean_phone) >= 7 and clean_phone in structs["phone_map"]:
+        return structs["phone_map"][clean_phone]
+
+    # 2. Name / Alias Resolution
+    if clean_name:
+        matched = resolve_client_by_name(clean_name)
+        if matched:
+            # Conflict Guard: If contact was provided and conflicts with matched canonical client, reject merge
+            if clean_email:
+                client_emails = [e.lower() for e in matched.get("emails", [])]
+                if client_emails and clean_email not in client_emails:
+                    domain = clean_email.split("@")[-1] if "@" in clean_email else ""
+                    matched_domains = [ce.split("@")[-1].lower() for ce in client_emails if "@" in ce]
+                    if domain and matched_domains and domain not in matched_domains:
+                        return None
+            if clean_phone and len(clean_phone) >= 7:
+                client_phones = ["".join(filter(str.isdigit, p)) for p in matched.get("phones", [])]
+                client_phones = [p for p in client_phones if len(p) >= 7]
+                if client_phones and clean_phone not in client_phones:
+                    return None
+            return matched
+
+    return None
