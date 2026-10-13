@@ -101,22 +101,35 @@ def get_analytics():
     if is_dataset_cleared():
         fin = reconcile_finances()
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM leads WHERE deleted_at IS NULL")
-        leads_count = cur.fetchone()[0]
-        conn.close()
-        if not fin["overdue"] and not fin["never_billed"] and not fin["we_owe"] and not leads_count:
-            return {
-                "churn": {"client": "", "retainer_value": "", "overdue_invoice": "",
-                          "evidence": [], "what_to_do_this_week": "",
-                          "draft_script": ""},
-                "marketing": {"recommended_channel": "No data",
-                              "why": "Upload business data to begin analysis.",
-                              "channels": [], "profitability_verified": False},
-                "limitations": [],
-                "monday_top_3": []
-            }
-        # Workspace created after reset: never show hardcoded Patel/Pack 01 actions.
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT source, status FROM leads WHERE deleted_at IS NULL")
+            current_leads = [dict(row) for row in cur.fetchall()]
+        finally:
+            conn.close()
+
+        by_channel = defaultdict(lambda: {"leads": 0, "converted": 0})
+        for row in current_leads:
+            source = str(row.get("source") or "Unknown").strip()
+            by_channel[source]["leads"] += 1
+            if str(row.get("status") or "").lower() in {"won", "converted"}:
+                by_channel[source]["converted"] += 1
+        channels = []
+        for name, entry in sorted(by_channel.items()):
+            count, won = entry["leads"], entry["converted"]
+            channels.append({
+                "name": name, "leads": count, "converted": won,
+                "conversion_rate": f"{100 * won / count:.1f}%" if count else "0.0%",
+                "revenue_invoiced": None, "cash_collected": None,
+                "production_cost": None, "gross_profit": None,
+                "gross_margin": None, "status": "Profit not verified"
+            })
+        best = max(channels, key=lambda c: (c["converted"] / c["leads"], c["converted"]), default=None)
+        marketing = {
+            "recommended_channel": best["name"] if best else "No data",
+            "why": "Recommendation uses only uploaded lead conversions; profit is not verified.",
+            "channels": channels, "profitability_verified": False
+        }
         actions = []
         if fin["overdue"]:
             actions.append({
@@ -136,11 +149,8 @@ def get_analytics():
             })
         return {
             "churn": {"client": "", "retainer_value": "", "overdue_invoice": "",
-                      "evidence": [], "what_to_do_this_week": "",
-                      "draft_script": ""},
-            "marketing": {"recommended_channel": "Not enough attributed data",
-                          "why": "Only live records are shown in this workspace.",
-                          "channels": [], "profitability_verified": False},
+                      "evidence": [], "what_to_do_this_week": "", "draft_script": ""},
+            "marketing": marketing,
             "limitations": [],
             "monday_top_3": actions
         }
