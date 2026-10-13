@@ -631,7 +631,7 @@ def execute_reset(confirmation_phrase: str, performed_by: str = "owner",
     workspace from being automatically refilled on process restart.
     """
     if str(confirmation_phrase).strip() != "DELETE ALL BUSINESS DATA":
-        return {"status": "error", "message": "Type exactly DELETE ALL BUSINESS DATA."}
+        return {"status": "error", "message": "Invalid confirmation phrase. Type exactly DELETE ALL BUSINESS DATA."}
 
     if not _destructive_reset_configured():
         return {
