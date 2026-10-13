@@ -12,7 +12,7 @@ import os
 import json
 import datetime
 from pathlib import Path
-from services.db import get_db, clean_float, get_current_revision, is_dataset_cleared
+from services.db import get_db, clean_float, get_current_revision, is_dataset_cleared, invalidate_caches
 import math
 from services.identity import resolve_client, THIRD_PARTY_PAYERS, CANONICAL_CLIENTS
 
@@ -578,6 +578,7 @@ def process_file_upload(filename, content_bytes):
         }
 
     conn.close()
+    invalidate_caches()
 
     # Automatically classify newly imported messages via Jev without holding DB transaction open
     if new_messages_to_classify:

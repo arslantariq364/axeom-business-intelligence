@@ -10,7 +10,7 @@ try:
 except ImportError:
     pass
 from flask import Flask, render_template, jsonify, request, session, make_response
-from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads, is_dataset_cleared
+from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads, is_dataset_cleared, close_request_db
 from services.identity import get_canonical_clients, get_third_party_payers
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
@@ -32,6 +32,9 @@ from services.report_generator import generate_business_report, render_report_ht
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "axeom-secret-production-key-2026")
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
+
+# Register request database cleanup
+app.teardown_appcontext(close_request_db)
 
 # Ensure database is initialized and seeded
 if not os.environ.get("VERCEL"):
@@ -81,7 +84,7 @@ def get_state():
     cleared_workspace = is_dataset_cleared()
     fin = reconcile_finances()
     req = get_requests_and_leads()
-    ana = get_analytics()
+    ana = get_analytics(fin=fin)
     decisions = get_all_decisions()
 
     # Dynamic client listing respecting active vs. archived state

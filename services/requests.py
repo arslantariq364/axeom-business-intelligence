@@ -329,11 +329,12 @@ def get_requests_and_leads():
     unreplied = [l for l in leads if not l.get('first_reply') or not l['first_reply'].strip()]
     replied = [l for l in leads if l.get('first_reply') and l['first_reply'].strip()]
 
+    cleared = is_dataset_cleared()
     return {
         "lost_requests": active_lost_requests,
         "lost_requests_count": len(active_lost_requests),
-        "root_causes": ROOT_CAUSES,
-        "deterioration": DETERIORATION,
+        "root_causes": [] if cleared else ROOT_CAUSES,
+        "deterioration": {"month": "", "explanation": ""} if cleared else DETERIORATION,
         "unreplied_leads": unreplied,
         "unreplied_leads_count": len(unreplied),
         "total_leads_count": len(leads),

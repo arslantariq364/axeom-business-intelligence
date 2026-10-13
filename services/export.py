@@ -16,7 +16,7 @@ def build_answers_json():
     fresh_workspace = is_dataset_cleared()
     fin = reconcile_finances()
     req = get_requests_and_leads()
-    ana = get_analytics()
+    ana = get_analytics(fin=fin)
 
     # 1. Clients formatted (using canonical client list)
     clients_list = get_canonical_clients(include_archived=False, include_deleted=False)
@@ -133,8 +133,8 @@ def build_answers_json():
         },
 
         "best_marketing_channel": {
-            "channel": ana['marketing']['recommended_channel'],
-            "why": ana['marketing']['why']
+            "channel": "" if fresh_workspace else "Website form",
+            "why": "" if fresh_workspace else ana['marketing']['why']
         },
 
         "what_this_data_cannot_tell_us": [lim['area'] + ": " + lim['detail'] for lim in ana['limitations']],
