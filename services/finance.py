@@ -118,9 +118,18 @@ def reconcile_finances():
         inv_amt = float(inv['amount'])
         paid_amt = inv_paid_amount[inv_no]
         balance = inv_amt - paid_amt
-        due_parts = inv['due'].split('-')
-        due_date = datetime.date(int(due_parts[0]), int(due_parts[1]), int(due_parts[2]))
-        tool_status = inv['status'].strip().lower()
+        try:
+            due_date = parse_date(str(inv.get("due") or ""))
+        except (ValueError, TypeError, IndexError):
+            due_date = None
+        tool_status = str(inv.get('status') or '').strip().lower()
+        if due_date is None:
+            discrepancies.append({
+                "invoice": inv_no, "client": inv.get("bill_to") or "",
+                "amount": inv_amt, "balance": round(balance, 2),
+                "tool_says": tool_status, "truth": "invalid due date",
+                "how_you_know": "Invoice has no parseable due date and cannot safely enter the overdue calculation."
+            })
 
         c = resolve_client_by_name(inv['bill_to'])
         c_name = c['canonical_name'] if c else inv['bill_to']
@@ -162,7 +171,7 @@ def reconcile_finances():
         if tool_status == 'void':
             continue
 
-        if balance > 0 and due_date < AS_OF_DATE:
+        if balance > 0 and due_date is not None and due_date < AS_OF_DATE:
             days_late = (AS_OF_DATE - due_date).days
             overdue_list.append({
                 "client": inv['bill_to'],
