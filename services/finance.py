@@ -94,7 +94,7 @@ def reconcile_finances():
 
     pay_by_id = {p['payment_id']: p for p in payments}
     for pid, inv_no in manual_pay_map.items():
-        if pid in pay_by_id:
+        if pid in pay_by_id and pay_by_id[pid]['reference'].strip() != inv_no:
             inv_paid_amount[inv_no] += float(pay_by_id[pid]['amount'])
 
     # 3. Brightline batch payments
@@ -225,6 +225,94 @@ def reconcile_finances():
         }
     ]
     never_billed_total = sum(n['amount'] for n in never_billed_list)
+
+
+    # Reconcile liabilities and unbilled bookings against the CURRENT dataset.
+    # Keep verified historical exceptions, but remove them when backing evidence disappears.
+    payment_ids = {p["payment_id"] for p in payments}
+    invoice_ids = set(inv_by_no)
+    booking_by_id = {b["booking_id"]: b for b in bookings}
+    we_owe_list = [
+        liability for liability in we_owe_list
+        if (
+            "Glow" not in liability["client"] or
+            {"P5091", "P5093"}.issubset(payment_ids) and "INV-1086" in invoice_ids
+        ) and (
+            "Lone Star" not in liability["client"] or
+            {"INV-1135", "INV-1143"}.issubset(invoice_ids) and
+            "B148" in booking_by_id and
+            str(booking_by_id["B148"].get("status", "")).strip().lower() in
+            {"cancelled", "canceled"}
+        )
+    ]
+
+    # General overpayments are credits owed back to clients, not extra revenue.
+    for invoice in invoices:
+        number = invoice["invoice_no"]
+        if str(invoice.get("status", "")).strip().lower() == "void":
+            continue
+        excess = round(inv_paid_amount[number] - float(invoice["amount"]), 2)
+        if excess > 0.005 and number != "INV-1086":
+            canonical = resolve_client_by_name(invoice["bill_to"])
+            client_name = canonical["canonical_name"] if canonical else invoice["bill_to"]
+            we_owe_list.append({
+                "client": client_name,
+                "amount": excess,
+                "type": "Overpayment",
+                "why": f"Verified payments allocated to invoice {number} exceed its face value by ${excess:,.2f}. Review refund or credit."
+            })
+            client_financials[client_name]["credit"] += excess
+    for liability in we_owe_list:
+        if liability["client"] == "Glow Aesthetics":
+            client_financials["Glow Aesthetics"]["credit"] += liability["amount"]
+        elif liability["client"] == "Lone Star Realty":
+            client_financials["Lone Star Realty"]["credit"] += liability["amount"]
+    we_owe_total = sum(item["amount"] for item in we_owe_list)
+
+    # Original three verified exceptions remain valid only while their booking is
+    # completed, unbilled and active. New uploaded bookings are assessed separately.
+    import re
+    def invoice_links_booking(booking):
+        booking_id = str(booking["booking_id"])
+        exact_id = re.compile(r"(?<![A-Z0-9])" + re.escape(booking_id) + r"(?![A-Z0-9])", re.I)
+        return any(exact_id.search(str(i.get("memo") or "")) for i in invoices
+                   if str(i.get("status") or "").strip().lower() != "void")
+
+    baseline_ids = {item["booking_id_or_month"] for item in never_billed_list}
+    never_billed_list = [
+        item for item in never_billed_list
+        if item["booking_id_or_month"] in booking_by_id and
+        str(booking_by_id[item["booking_id_or_month"]].get("status", "")).strip().lower()
+        in {"completed", "complete", "done"} and
+        not invoice_links_booking(booking_by_id[item["booking_id_or_month"]])
+    ]
+    for booking in bookings:
+        booking_id = booking["booking_id"]
+        if booking_id in baseline_ids:
+            continue
+        if str(booking.get("status") or "").strip().lower() not in {"completed", "complete", "done"}:
+            continue
+        amount = float(booking.get("price") or 0)
+        if amount <= 0 or invoice_links_booking(booking):
+            continue
+        # Original dataset contains many historical paid sessions without a
+        # machine-readable invoice/booking key. Avoid declaring those unbilled.
+        source = str(booking.get("source_file") or "")
+        numeric_id = re.fullmatch(r"B(\d+)", str(booking_id), re.I)
+        if source.lower() == "bookings.csv" and (not numeric_id or int(numeric_id.group(1)) <= 152):
+            continue
+        found = resolve_client_by_name(booking.get("client_name", ""))
+        never_billed_list.append({
+            "client": booking["client_name"],
+            "canonical_client": found["canonical_name"] if found else booking["client_name"],
+            "booking_id_or_month": booking_id,
+            "date": booking.get("booking_date") or "",
+            "service": booking.get("service") or "",
+            "amount": round(amount, 2),
+            "evidence": f"Uploaded booking {booking_id} is marked complete with ${amount:,.2f} price; no invoice memo explicitly links it. Verify against monthly/retainer coverage before billing.",
+            "verification": "possible_unbilled_needs_review"
+        })
+    never_billed_total = sum(item["amount"] for item in never_billed_list)
 
     return {
         "overdue": overdue_list,
