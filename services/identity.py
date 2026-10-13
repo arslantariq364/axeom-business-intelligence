@@ -307,6 +307,26 @@ THIRD_PARTY_PAYERS = [
     }
 ]
 
+def get_third_party_payers():
+    """Use actual payer rows; never return bundled demonstration organizations."""
+    import json
+    from services.db import get_db
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM third_party_payers ORDER BY name")
+        rows = [dict(row) for row in cur.fetchall()]
+        for row in rows:
+            for field in ("pays_for", "aliases", "emails", "phones"):
+                try:
+                    row[field] = json.loads(row.get(field) or "[]")
+                except (ValueError, TypeError):
+                    row[field] = []
+        return rows
+    finally:
+        conn.close()
+
+
 def resolve_client_by_name(name):
     from services.db import is_dataset_cleared
     if is_dataset_cleared():
