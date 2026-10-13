@@ -5,7 +5,7 @@ Supports structured JSON export and clean, printable executive HTML/PDF report.
 """
 
 import datetime
-from services.identity import get_canonical_clients, THIRD_PARTY_PAYERS
+from services.identity import get_canonical_clients, get_third_party_payers
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
@@ -17,6 +17,8 @@ def generate_business_report():
     Generates comprehensive, live executive business report (Mode B).
     Strictly grounded in active database records without synthetic fabrications.
     """
+    from services.db import is_dataset_cleared
+    new_workspace = is_dataset_cleared()
     now = datetime.datetime.now()
     generated_at_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -42,9 +44,9 @@ def generate_business_report():
             "report_title": "Axeom Studio — Executive Business & Operations Report",
             "report_mode": "MODE_B_CURRENT_BUSINESS_REPORT",
             "generated_at": generated_at_str,
-            "data_as_of_date": "2026-10-06",
+            "data_as_of_date": None if new_workspace else "2026-10-06",
             "dataset_revision": rev,
-            "status": "Official Reconciled State"
+            "status": "Fresh workspace: actual uploaded records only" if new_workspace else "Official Reconciled State"
         },
         "executive_summary": {
             "active_clients_count": len(active_clients),
@@ -136,16 +138,18 @@ def generate_business_report():
             } for i, a in enumerate(ana['monday_top_3'])
         ],
         "audit_metadata": {
-            "source_evidence": "Reconciled from raw transactional ledgers: messages.txt, bookings.csv, invoices.csv, payments.csv, production_board.csv.",
-            "unresolved_inconsistencies": [
+            "source_evidence": ("New workspace: only newly uploaded records and explicit business source files."
+                                if new_workspace else
+                                "Original challenge source ledgers: messages.txt, bookings.csv, invoices.csv, payments.csv, production_board.csv."),
+            "unresolved_inconsistencies": ([] if new_workspace else [
                 "6 accounting software discrepancies identified where tool flags paid invoices as unpaid or ignores deposits.",
                 "Third-party payer BRIGHTLINE MARKETING LLC disburses bundled monthly payments for Greenway Pediatrics and Summit Chiropractic requiring manual allocation."
-            ],
-            "important_assumptions": [
+            ]),
+            "important_assumptions": ([] if new_workspace else [
                 "Financial reference cutoff date strictly set to October 6, 2026.",
                 "Invoices are categorized as overdue exactly 14 days after issue date.",
                 "Completed shoots and delivered videos on production board trigger immediate billability."
-            ],
+            ]),
             "data_limitations": [lim['area'] + ": " + lim['detail'] for lim in ana['limitations']]
         }
     }
