@@ -271,6 +271,14 @@ def _init_db_postgres():
     );
     """)
 
+    # Durable non-business lifecycle marker. Not removed by empty-workspace reset.
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key VARCHAR(64) PRIMARY KEY,
+        value TEXT
+    );
+    """)
+
     # 3. Canonical Clients & Payers
     cur.execute("""
     CREATE TABLE IF NOT EXISTS clients (
@@ -484,6 +492,13 @@ def _init_db_postgres():
 def _init_db_sqlite():
     conn = get_db()
     cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS dataset_revisions (
@@ -773,12 +788,29 @@ def get_recent_uploads(limit=10):
     return rows
 
 
+def is_dataset_cleared():
+    """Persistent empty-workspace marker: prevents implicit challenge-data re-seeding."""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM app_settings WHERE key = ?", ("dataset_cleared",))
+        row = cur.fetchone()
+        return bool(row and row["value"] == "1")
+    except Exception:
+        # During first-time initialization app_settings may not exist yet.
+        return False
+    finally:
+        conn.close()
+
+
 def seed_db_if_empty():
     """
     Seeds database from DATA_DIR directory using the exact same unified ingest pipeline.
     Ensures identical validation and provenance tracking across SQLite and PostgreSQL.
     """
     init_db()
+    if is_dataset_cleared():
+        return  # A consciously cleared database must stay empty across restarts.
     conn = get_db()
     cur = conn.cursor()
 
