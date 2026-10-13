@@ -1710,6 +1710,9 @@ async function renderResetBusinessDataSubTab(container) {
     const res = await fetch('/api/manage/reset/preview');
     const data = await res.json();
     const p = data.preview || {};
+    if (!res.ok || data.status !== 'success') {
+      throw new Error(data.message || 'Reset safety preview unavailable');
+    }
 
     let tableRows = '';
     if (p.table_counts) {
@@ -1729,24 +1732,27 @@ async function renderResetBusinessDataSubTab(container) {
           </div>
           <div>
             <h3 style="font-size: 1.25rem; font-weight: 800; color: #DC2626; margin: 0;">Danger Zone: Reset Business Data</h3>
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin: 2px 0 0 0;">Re-seeds dataset to pristine October 6, 2026 challenge baseline</p>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin: 2px 0 0 0;">Restore October 6, 2026 challenge baseline (requires verified snapshot)</p>
           </div>
         </div>
 
         <div class="modal-disclaimer" style="margin-bottom: 18px; background: #FEF2F2; border-color: #FECACA; color: #991B1B;">
-          ⚠️ <strong>Explicit Warning:</strong> Resetting will discard all newly uploaded files, custom record edits, and synthetic staging data.
-          It will re-establish the certified 1,668 genesis baseline records.
+          ⚠️ <strong>Important:</strong> A reset would replace newer business records and owner changes with an authenticated, verified October 6 baseline.
+          It is never a "clear dashboard" operation. This reset is blocked unless the server confirms a recoverable and independently verified original snapshot.
         </div>
 
         <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
           <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">
-            Target Dataset Inspection (${p.total_records || 1668} Total Records)
+            Current Dataset Inspection (${p.total_records ?? 'unknown'} Records — NOT the target baseline)
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             ${tableRows}
           </div>
           <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-dim);">
-            🛡️ Recoverable genesis backup verified: <strong>${escapeHtml(p.backup_reference || 'Active')}</strong>
+            ${p.reset_available
+              ? '✅ Verified baseline restore available:'
+              : '⛔ Baseline restore unavailable:'}
+            <strong>${escapeHtml(p.reset_available ? (p.backup_reference || 'Verified') : (p.unavailable_reason || 'No verified restore source configured'))}</strong>
           </div>
         </div>
 
@@ -1759,7 +1765,7 @@ async function renderResetBusinessDataSubTab(container) {
 
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button class="btn btn-secondary" onclick="setManageSubTab('records')">Cancel</button>
-          <button class="btn btn-danger" onclick="executeResetFromUI()">Confirm Reset Business Data</button>
+          <button class="btn btn-danger" onclick="executeResetFromUI()" ${p.reset_available ? '' : 'disabled title="A verified baseline is required"'}>Confirm Reset Business Data</button>
         </div>
       </div>
     `;
@@ -1784,12 +1790,12 @@ async function executeResetFromUI() {
         body: JSON.stringify({ confirmation_phrase: phrase })
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        alert("Business dataset successfully reset to certified baseline.");
+      if (res.ok && data.status === 'success' && data.verified_restoration) {
+        alert("Business dataset successfully reset to verified baseline.");
         await loadAppState();
         setManageSubTab('records');
       } else {
-        alert("Reset failed: " + data.message);
+        alert("Reset not completed: " + (data.message || "No verified baseline restoration was performed."));
       }
     } catch (err) {
       alert("Reset error: " + err.message);
@@ -2039,12 +2045,14 @@ async function submitOwnerAuth() {
     });
     const d = await res.json();
     if (d.status === 'success') {
+      // Capture the pending operation BEFORE closeOwnerAuthModal clears it.
+      // Previously, every privileged callback (including Reset and Upload Revert)
+      // was discarded on successful PIN entry.
+      const cb = pendingAuthCallback;
       closeOwnerAuthModal();
       checkOwnerAuthStatus();
-      if (pendingAuthCallback) {
-        const cb = pendingAuthCallback;
-        pendingAuthCallback = null;
-        cb();
+      if (typeof cb === 'function') {
+        await cb();
       }
     } else {
       if (errDiv) {
