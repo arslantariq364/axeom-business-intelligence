@@ -97,6 +97,54 @@ def get_analytics():
     from services.db import get_db
     from services.finance import reconcile_finances
 
+    from services.db import is_dataset_cleared
+    if is_dataset_cleared():
+        fin = reconcile_finances()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM leads WHERE deleted_at IS NULL")
+        leads_count = cur.fetchone()[0]
+        conn.close()
+        if not fin["overdue"] and not fin["never_billed"] and not fin["we_owe"] and not leads_count:
+            return {
+                "churn": {"client": "", "retainer_value": "", "overdue_invoice": "",
+                          "evidence": [], "what_to_do_this_week": "",
+                          "draft_script": ""},
+                "marketing": {"recommended_channel": "No data",
+                              "why": "Upload business data to begin analysis.",
+                              "channels": [], "profitability_verified": False},
+                "limitations": [],
+                "monday_top_3": []
+            }
+        # Workspace created after reset: never show hardcoded Patel/Pack 01 actions.
+        actions = []
+        if fin["overdue"]:
+            actions.append({
+                "id": "action_collect_overdue", "title": "Review outstanding invoices",
+                "client": "", "contact": "", "rank": 1, "urgency": "HIGH",
+                "financial_impact": f"${fin['overdue_total']:,.2f} outstanding",
+                "summary": f"Review {len(fin['overdue'])} overdue invoices totaling ${fin['overdue_total']:,.2f}.",
+                "draft_notes": "Review invoice records and contact customers manually."
+            })
+        if fin["never_billed"]:
+            actions.append({
+                "id": "action_bill_unbilled", "title": "Review potentially unbilled bookings",
+                "client": "", "contact": "", "rank": 2, "urgency": "MEDIUM",
+                "financial_impact": f"${fin['never_billed_total']:,.2f} to review",
+                "summary": "Check completed bookings against invoices and package coverage.",
+                "draft_notes": "Confirm actual work and billing evidence."
+            })
+        return {
+            "churn": {"client": "", "retainer_value": "", "overdue_invoice": "",
+                      "evidence": [], "what_to_do_this_week": "",
+                      "draft_script": ""},
+            "marketing": {"recommended_channel": "Not enough attributed data",
+                          "why": "Only live records are shown in this workspace.",
+                          "channels": [], "profitability_verified": False},
+            "limitations": [],
+            "monday_top_3": actions
+        }
+
     fin = reconcile_finances()
     conn = get_db()
     cur = conn.cursor()
