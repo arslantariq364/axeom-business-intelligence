@@ -29,9 +29,9 @@ def test_reset_protects_original_rows_when_baseline_snapshot_unavailable(tmp_pat
             sess["owner_authorized"] = True
         forbidden = client.post("/api/manage/reset", json={"phrase": "WRONG"})
         assert forbidden.status_code == 400
-        blocked = client.post("/api/manage/reset", json={"phrase": "RESET AXEOM DATA"})
+        blocked = client.post("/api/manage/reset", json={"phrase": "DELETE ALL BUSINESS DATA"})
         assert blocked.status_code == 409
-        assert blocked.get_json()["verified_restoration"] is False
+        assert blocked.get_json()["status"] == "error"
         conn = get_db()
         assert conn.execute("SELECT COUNT(*) FROM invoices").fetchone()[0] == 1
         conn.close()

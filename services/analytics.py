@@ -97,6 +97,64 @@ def get_analytics():
     from services.db import get_db
     from services.finance import reconcile_finances
 
+    from services.db import is_dataset_cleared
+    if is_dataset_cleared():
+        fin = reconcile_finances()
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT source, status FROM leads WHERE deleted_at IS NULL")
+            current_leads = [dict(row) for row in cur.fetchall()]
+        finally:
+            conn.close()
+
+        by_channel = defaultdict(lambda: {"leads": 0, "converted": 0})
+        for row in current_leads:
+            source = str(row.get("source") or "Unknown").strip()
+            by_channel[source]["leads"] += 1
+            if str(row.get("status") or "").lower() in {"won", "converted"}:
+                by_channel[source]["converted"] += 1
+        channels = []
+        for name, entry in sorted(by_channel.items()):
+            count, won = entry["leads"], entry["converted"]
+            channels.append({
+                "name": name, "leads": count, "converted": won,
+                "conversion_rate": f"{100 * won / count:.1f}%" if count else "0.0%",
+                "revenue_invoiced": None, "cash_collected": None,
+                "production_cost": None, "gross_profit": None,
+                "gross_margin": None, "status": "Profit not verified"
+            })
+        best = max(channels, key=lambda c: (c["converted"] / c["leads"], c["converted"]), default=None)
+        marketing = {
+            "recommended_channel": best["name"] if best else "No data",
+            "why": "Recommendation uses only uploaded lead conversions; profit is not verified.",
+            "channels": channels, "profitability_verified": False
+        }
+        actions = []
+        if fin["overdue"]:
+            actions.append({
+                "id": "action_collect_overdue", "title": "Review outstanding invoices",
+                "client": "", "contact": "", "rank": 1, "urgency": "HIGH",
+                "financial_impact": f"${fin['overdue_total']:,.2f} outstanding",
+                "summary": f"Review {len(fin['overdue'])} overdue invoices totaling ${fin['overdue_total']:,.2f}.",
+                "draft_notes": "Review invoice records and contact customers manually."
+            })
+        if fin["never_billed"]:
+            actions.append({
+                "id": "action_bill_unbilled", "title": "Review potentially unbilled bookings",
+                "client": "", "contact": "", "rank": 2, "urgency": "MEDIUM",
+                "financial_impact": f"${fin['never_billed_total']:,.2f} to review",
+                "summary": "Check completed bookings against invoices and package coverage.",
+                "draft_notes": "Confirm actual work and billing evidence."
+            })
+        return {
+            "churn": {"client": "", "retainer_value": "", "overdue_invoice": "",
+                      "evidence": [], "what_to_do_this_week": "", "draft_script": ""},
+            "marketing": marketing,
+            "limitations": [],
+            "monday_top_3": actions
+        }
+
     fin = reconcile_finances()
     conn = get_db()
     cur = conn.cursor()

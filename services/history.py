@@ -4,12 +4,12 @@ Links bookings, invoices, payments, production tasks, and messages for any clien
 """
 
 from services.db import get_db
-from services.identity import CANONICAL_CLIENTS, resolve_client_by_name
+from services.identity import get_canonical_clients, resolve_client_by_name
 
 def get_client_history(client_id_or_name):
     # Find canonical client
     client = None
-    for c in CANONICAL_CLIENTS:
+    for c in get_canonical_clients():
         if c['id'] == client_id_or_name or c['canonical_name'].lower() == client_id_or_name.lower():
             client = c
             break

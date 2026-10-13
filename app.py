@@ -10,8 +10,8 @@ try:
 except ImportError:
     pass
 from flask import Flask, render_template, jsonify, request, session, make_response
-from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads
-from services.identity import CANONICAL_CLIENTS, THIRD_PARTY_PAYERS, get_canonical_clients
+from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads, is_dataset_cleared
+from services.identity import get_canonical_clients, get_third_party_payers
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
@@ -78,6 +78,7 @@ def guide_route():
 
 @app.route("/api/state")
 def get_state():
+    cleared_workspace = is_dataset_cleared()
     fin = reconcile_finances()
     req = get_requests_and_leads()
     ana = get_analytics()
@@ -121,6 +122,7 @@ def get_state():
 
     return jsonify({
         "status": "success",
+        "workspace_cleared": cleared_workspace,
         "metrics": metrics,
         "is_owner_authorized": is_owner_authorized(),
         "today": {
@@ -128,7 +130,7 @@ def get_state():
             "monday_top_3": ana['monday_top_3']
         },
         "clients": enriched_clients,
-        "third_party_payers": THIRD_PARTY_PAYERS,
+        "third_party_payers": get_third_party_payers(),
         "money": {
             "overdue": fin['overdue'],
             "overdue_total": fin['overdue_total'],
@@ -148,7 +150,7 @@ def get_state():
             "marketing": ana['marketing'],
             "limitations": ana['limitations']
         },
-        "evidence_register": EVIDENCE_REGISTER,
+        "evidence_register": [] if cleared_workspace else EVIDENCE_REGISTER,
         "decisions": decisions,
         "revision": get_current_revision(),
         "recent_uploads": get_recent_uploads()
@@ -355,7 +357,7 @@ def manage_reset_route():
 
     data = request.get_json(silent=True) or {}
     phrase = data.get("confirmation_phrase") or data.get("phrase", "")
-    res = execute_reset(phrase)
+    res = execute_reset(phrase, expected_total_records=data.get("expected_total_records"))
     if res.get("status") == "error":
         # 409 = valid request rejected because verified restore capability is absent.
         code = 400 if "Invalid confirmation phrase" in res.get("message", "") else 409

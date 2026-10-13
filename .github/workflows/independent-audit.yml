@@ -23,13 +23,13 @@ jobs:
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
       - name: Compile changed Python source
-        run: python -m compileall -q app.py services tests/test_audit_regressions.py tests/test_reset_safety.py
+        run: python -m compileall -q app.py services tests/test_audit_regressions.py tests/test_reset_safety.py tests/test_clear_all_dashboard.py
       - name: Validate frontend JavaScript syntax
         run: node --check static/js/app.js
       - name: Verify owner authorization callback lifecycle
         run: node tests/test_reset_auth_callback.cjs
       - name: Run independent and reset-safety tests using temporary isolated SQLite files
-        run: python -m pytest tests/test_audit_regressions.py tests/test_reset_safety.py -v --disable-warnings --maxfail=1
+        run: python -m pytest tests/test_audit_regressions.py tests/test_reset_safety.py tests/test_clear_all_dashboard.py -v --disable-warnings --maxfail=1
 
   postgres-smoke:
     runs-on: ubuntu-latest
@@ -61,4 +61,4 @@ jobs:
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
       - name: Smoke test real PostgreSQL dialect (ephemeral, not Neon)
-        run: python -m pytest tests/test_postgres_smoke.py -v --disable-warnings --maxfail=1
+        run: python -m pytest tests/test_postgres_smoke.py tests/test_clear_postgres_local.py -v --disable-warnings --maxfail=1

@@ -154,6 +154,19 @@ function renderTodayView() {
   const metrics = appState.metrics;
   const decisions = appState.decisions || {};
 
+  if (appState.workspace_cleared) {
+    const hero = document.getElementById('hero-card-container');
+    const secondary = document.getElementById('secondary-actions-container');
+    const pulse = document.getElementById('pulse-grid-container');
+    if (hero) hero.innerHTML = '<div class="hero-lime-card"><h3 class="hero-action-headline">Fresh workspace</h3><p>Upload CSV files to start tracking new clients, payments, bookings and requests.</p><button class="btn btn-primary" onclick="switchView(\'upload\')">Add New Files</button></div>';
+    if (secondary) secondary.innerHTML = '';
+    if (pulse) {
+      const cards = [['CLIENTS', metrics.client_count], ['OVERDUE', '$' + metrics.overdue_total], ['UNBILLED', '$' + metrics.never_billed_total], ['CREDITS', '$' + metrics.we_owe_total], ['OPEN REQUESTS', metrics.lost_requests_count + metrics.unreplied_leads_count]];
+      pulse.innerHTML = cards.map(function(card) { return '<div class="pulse-card"><div class="pulse-card-label">' + card[0] + '</div><div class="pulse-card-value">' + card[1] + '</div></div>'; }).join('');
+    }
+    return;
+  }
+
   // B. First Recommended Action: Prominent Lime-Accented Card
   const heroCard = document.getElementById('hero-card-container');
   if (heroCard) {
@@ -325,6 +338,7 @@ function renderClientsView() {
   const searchTerm = (document.getElementById('client-search-input')?.value || '').toLowerCase();
   const filterStatus = document.getElementById('client-filter-select')?.value || 'all';
 
+  if (!clients.length) { container.innerHTML = '<div class="table-card" style="padding:24px">No clients yet. Upload bookings or invoices to add clients.</div>'; return; }
   const filtered = clients.filter(c => {
     const matchSearch = c.canonical_name.toLowerCase().includes(searchTerm) ||
                         c.primary_contact.toLowerCase().includes(searchTerm) ||
@@ -395,6 +409,7 @@ function renderMoneyView() {
   if (!container) return;
 
   const money = appState.money;
+  if (appState.workspace_cleared && !money.overdue.length && !money.we_owe.length && !money.never_billed.length && !money.discrepancies.length) { container.innerHTML = '<div class="table-card" style="padding:24px">No financial records yet.</div>'; return; }
 
   if (currentMoneySubTab === 'overdue') {
     container.innerHTML = `
@@ -663,6 +678,7 @@ function renderRequestsView() {
   if (!container) return;
 
   const req = appState.requests;
+  if (appState.workspace_cleared && !req.lost_requests.length && !req.unreplied_leads.length && appState.metrics.total_leads_count === 0) { container.innerHTML = '<div class="table-card" style="padding:24px">No client requests or leads yet.</div>'; return; }
 
   if (currentReqSubTab === 'lost') {
     container.innerHTML = `
@@ -959,6 +975,7 @@ function renderEvidenceView() {
   if (!container) return;
 
   const reg = appState.evidence_register;
+  if (!reg.length) { container.innerHTML = '<div class="table-card" style="padding:24px">No source evidence in this workspace yet.</div>'; return; }
 
   container.innerHTML = reg.map(item => `
     <div class="action-card" style="margin-bottom: 14px;">
@@ -1056,6 +1073,7 @@ async function renderClientHistory(clientId) {
   if (!dossierContainer) return;
 
   const selector = document.getElementById('history-client-select');
+  if (!appState.clients.length) { if (selector) selector.innerHTML = '<option value="">No clients</option>'; dossierContainer.innerHTML = '<div class="table-card" style="padding:24px">No client history yet.</div>'; return; }
   if (selector && selector.children.length <= 1) {
     selector.innerHTML = appState.clients.map(c => `
       <option value="${c.id}" ${c.id === clientId ? 'selected' : ''}>${escapeHtml(c.canonical_name)}</option>
@@ -1704,12 +1722,14 @@ async function executeBulkOldDataDelete() {
 }
 
 // SUBTAB E: RESET BUSINESS DATA
+let resetExpectedRowCount = null;
 async function renderResetBusinessDataSubTab(container) {
   container.innerHTML = `<div class="table-card" style="padding: 24px; color: var(--text-muted);">Loading reset safety audit...</div>`;
   try {
     const res = await fetch('/api/manage/reset/preview');
     const data = await res.json();
     const p = data.preview || {};
+    resetExpectedRowCount = Number.isInteger(p.total_records) ? p.total_records : null;
     if (!res.ok || data.status !== 'success') {
       throw new Error(data.message || 'Reset safety preview unavailable');
     }
@@ -1732,40 +1752,40 @@ async function renderResetBusinessDataSubTab(container) {
           </div>
           <div>
             <h3 style="font-size: 1.25rem; font-weight: 800; color: #DC2626; margin: 0;">Danger Zone: Reset Business Data</h3>
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin: 2px 0 0 0;">Restore October 6, 2026 challenge baseline (requires verified snapshot)</p>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin: 2px 0 0 0;">Permanently delete everything and begin with an empty workspace</p>
           </div>
         </div>
 
         <div class="modal-disclaimer" style="margin-bottom: 18px; background: #FEF2F2; border-color: #FECACA; color: #991B1B;">
-          ⚠️ <strong>Important:</strong> A reset would replace newer business records and owner changes with an authenticated, verified October 6 baseline.
-          It is never a "clear dashboard" operation. This reset is blocked unless the server confirms a recoverable and independently verified original snapshot.
+          ⚠️ <strong>PERMANENT DELETION:</strong> Clears all clients, invoices, payments, bookings, leads,
+          messages, videos, files history, credits and owner decisions. No original sample dataset will be restored.
+          Make a separate backup before proceeding. This cannot be undone from the dashboard.
         </div>
 
         <div style="background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
           <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">
-            Current Dataset Inspection (${p.total_records ?? 'unknown'} Records — NOT the target baseline)
+            Records that will be permanently deleted (${p.total_records ?? 'unknown'})
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             ${tableRows}
           </div>
           <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-dim);">
-            ${p.reset_available
-              ? '✅ Verified baseline restore available:'
-              : '⛔ Baseline restore unavailable:'}
-            <strong>${escapeHtml(p.reset_available ? (p.backup_reference || 'Verified') : (p.unavailable_reason || 'No verified restore source configured'))}</strong>
+            ${p.reset_available ? '⚠️ Permanent clearing available with owner confirmation.'
+              : '⛔ Reset disabled until secure owner credentials are configured.'}
+            <strong>${escapeHtml(p.reset_available ? 'Records will not be recoverable using this button.' : (p.unavailable_reason || 'Not available'))}</strong>
           </div>
         </div>
 
         <div style="margin-bottom: 20px;">
           <label style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">
-            Confirmation Required (Type: <strong style="color: var(--text-main);">RESET AXEOM DATA</strong>)
+            Confirmation Required (Type: <strong style="color: var(--text-main);">DELETE ALL BUSINESS DATA</strong>)
           </label>
-          <input type="text" id="reset-confirmation-input" class="search-input" style="width: 100%; border: 1px solid var(--card-border); padding: 10px 14px; border-radius: 8px;" placeholder="Type RESET AXEOM DATA">
+          <input type="text" id="reset-confirmation-input" class="search-input" style="width: 100%; border: 1px solid var(--card-border); padding: 10px 14px; border-radius: 8px;" placeholder="Type DELETE ALL BUSINESS DATA">
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button class="btn btn-secondary" onclick="setManageSubTab('records')">Cancel</button>
-          <button class="btn btn-danger" onclick="executeResetFromUI()" ${p.reset_available ? '' : 'disabled title="A verified baseline is required"'}>Confirm Reset Business Data</button>
+          <button class="btn btn-danger" onclick="executeResetFromUI()" ${p.reset_available ? '' : 'disabled title="Secure OWNER_PIN and SECRET_KEY required"'}>Permanently Clear Dashboard</button>
         </div>
       </div>
     `;
@@ -1776,26 +1796,34 @@ async function renderResetBusinessDataSubTab(container) {
 
 async function executeResetFromUI() {
   const phrase = (document.getElementById('reset-confirmation-input')?.value || '').trim();
-  if (phrase !== 'RESET AXEOM DATA') {
-    alert("Confirmation failed: You must type exactly 'RESET AXEOM DATA' in the confirmation box.");
+  if (phrase !== 'DELETE ALL BUSINESS DATA') {
+    alert("Confirmation failed: You must type exactly 'DELETE ALL BUSINESS DATA' in the confirmation box.");
     return;
   }
 
-  // Require owner PIN
+  if (!Number.isInteger(resetExpectedRowCount) || resetExpectedRowCount < 0) {
+    alert('Refresh the reset preview before continuing.');
+    return;
+  }
+  if (!window.confirm('Final warning: PERMANENTLY delete all business records? This will NOT restore the original data.')) return;
+
+  // Require owner PIN in addition to the exact confirmation phrase.
   openOwnerAuthModal(async () => {
     try {
       const res = await fetch('/api/manage/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation_phrase: phrase })
+        body: JSON.stringify({ confirmation_phrase: phrase, expected_total_records: resetExpectedRowCount })
       });
       const data = await res.json();
-      if (res.ok && data.status === 'success' && data.verified_restoration) {
-        alert("Business dataset successfully reset to verified baseline.");
+      if (res.ok && data.status === 'success' && data.cleared === true &&
+          Object.values(data.table_counts_after || {}).every(value => value === 0)) {
+        alert('Dashboard cleared. ' + data.deleted_records + ' business records deleted.');
         await loadAppState();
+        resetExpectedRowCount = 0;
         setManageSubTab('records');
       } else {
-        alert("Reset not completed: " + (data.message || "No verified baseline restoration was performed."));
+        alert("Clear not completed: " + (data.message || "Database did not confirm a complete deletion."));
       }
     } catch (err) {
       alert("Reset error: " + err.message);

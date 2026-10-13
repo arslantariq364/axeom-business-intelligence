@@ -12,7 +12,7 @@ import os
 import json
 import datetime
 from pathlib import Path
-from services.db import get_db, clean_float, get_current_revision
+from services.db import get_db, clean_float, get_current_revision, is_dataset_cleared
 import math
 from services.identity import resolve_client, THIRD_PARTY_PAYERS, CANONICAL_CLIENTS
 
@@ -43,15 +43,19 @@ def _ensure_client(cur, name, email=""):
     email = (email or "").strip().lower()
     if not name:
         return
-    payer_names = {alias.lower() for p in THIRD_PARTY_PAYERS for alias in ([p["name"]] + p.get("aliases", []))}
+    payer_names = (
+        {alias.lower() for p in THIRD_PARTY_PAYERS for alias in ([p["name"]] + p.get("aliases", []))}
+        if not is_dataset_cleared() else set()
+    )
     if name.lower() in payer_names:
         return
     # Known aliases with conflicting contact data need human review, not an
     # automatically created duplicate account.
-    for known in CANONICAL_CLIENTS:
-        aliases = [known["canonical_name"]] + known.get("payer_aliases", [])
-        if name.lower() in {str(alias).strip().lower() for alias in aliases}:
-            return
+    if not is_dataset_cleared():
+        for known in CANONICAL_CLIENTS:
+            aliases = [known["canonical_name"]] + known.get("payer_aliases", [])
+            if name.lower() in {str(alias).strip().lower() for alias in aliases}:
+                return
     if resolve_client(name=name, email=email):
         return
     # Avoid falsely merging distinct businesses based on fuzzy substrings.

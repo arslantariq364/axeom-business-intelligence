@@ -307,7 +307,37 @@ THIRD_PARTY_PAYERS = [
     }
 ]
 
+def get_third_party_payers():
+    """Use actual payer rows; never return bundled demonstration organizations."""
+    import json
+    from services.db import get_db
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM third_party_payers ORDER BY name")
+        rows = [dict(row) for row in cur.fetchall()]
+        for row in rows:
+            for field in ("pays_for", "aliases", "emails", "phones"):
+                try:
+                    row[field] = json.loads(row.get(field) or "[]")
+                except (ValueError, TypeError):
+                    row[field] = []
+        return rows
+    finally:
+        conn.close()
+
+
 def resolve_client_by_name(name):
+    from services.db import is_dataset_cleared
+    if is_dataset_cleared():
+        candidates = get_canonical_clients()
+        value = str(name or "").strip().lower()
+        for client in candidates:
+            aliases = [client["canonical_name"]] + client.get("payer_aliases", [])
+            if value and value in {str(alias).lower() for alias in aliases}:
+                return client
+        return None
+
     if not name:
         return None
     name_clean = name.strip()
@@ -389,6 +419,18 @@ def resolve_client(name=None, email=None, phone=None):
     Matches by exact email, exact phone, or verified name/alias.
     Guards against false merges between similar names with conflicting contact evidence.
     """
+    from services.db import is_dataset_cleared
+    if is_dataset_cleared():
+        candidates = get_canonical_clients()
+        value = str(name or "").strip().lower()
+        email_value = str(email or "").strip().lower()
+        for client in candidates:
+            aliases = [client["canonical_name"]] + client.get("payer_aliases", [])
+            if value and value in {str(alias).lower() for alias in aliases}:
+                return client
+            if email_value and email_value in {str(addr).lower() for addr in client.get("emails", [])}:
+                return client
+        return None
     clean_email = email.strip().lower() if email else ""
     clean_phone = "".join(filter(str.isdigit, str(phone))) if phone else ""
     clean_name = name.strip() if name else ""
@@ -479,4 +521,4 @@ def get_canonical_clients(include_archived=True, include_deleted=False):
     except Exception:
         pass
 
-    return CANONICAL_CLIENTS
+    return []
