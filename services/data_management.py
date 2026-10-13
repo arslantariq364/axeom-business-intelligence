@@ -567,72 +567,145 @@ def revert_upload(upload_id: int, performed_by: str = "owner"):
     }
 
 
-def get_reset_preview():
-    """
-    Read-only inspection. Count CURRENT database rows but never treat a
-    PostgreSQL connection, Neon branch name, or a stale backup filename as
-    proof that a certified clean baseline snapshot can be restored.
+# These are the ONLY business tables allowed in a destructive workspace reset.
+# Keep app_settings as a durable lifecycle marker to prevent automatic re-seeding.
+CLEARABLE_TABLES = (
+    "message_classifications", "jev_cache", "owner_decisions", "audit_logs",
+    "file_uploads", "dataset_revisions", "messages", "production_board",
+    "leads", "payments", "invoices", "bookings", "costs", "team",
+    "third_party_payers", "clients"
+)
 
-    The repository contains no deployable pristine source CSVs, and the
-    legacy bundled JSON backups contain synthetic test records. Until an
-    operator provisions and validates an immutable original snapshot and a
-    transactional restorer, database-wide reset must stay disabled.
-    """
+
+def _destructive_reset_configured():
+    """Require non-default owner credentials before enabling production deletion."""
+    import os
+    pin = os.environ.get("OWNER_PIN", "")
+    secret = os.environ.get("SECRET_KEY", "")
+    return (bool(pin and secret) and pin != "axeom-owner-2026"
+            and secret != "axeom-secret-production-key-2026"
+            and len(pin) >= 6 and len(secret) >= 32)
+
+
+def get_reset_preview():
+    """Return exact current row counts (not a fake genesis target)."""
     conn = get_db()
-    cur = conn.cursor()
-    tables = [
-        "clients", "third_party_payers", "bookings", "invoices", "payments",
-        "production_board", "leads", "messages", "costs", "team",
-        "dataset_revisions", "file_uploads", "owner_decisions"
-    ]
-    counts = {}
-    for table in tables:
-        try:
+    try:
+        cur = conn.cursor()
+        counts = {}
+        for table in CLEARABLE_TABLES:
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             counts[table] = int(cur.fetchone()[0])
-        except Exception:
-            # This endpoint must not hide schema/permission failures as zeros.
-            conn.close()
-            raise
-    conn.close()
-    reason = (
-        "No independently verified, restorable October 6 baseline is configured. "
-        "The original CSV source files are absent from this deployment; a connected "
-        "Neon branch is not a backup. The checked-in legacy JSON exports include "
-        "synthetic test data and must not be treated as a pristine restore point."
-    )
+    finally:
+        conn.close()
+    eligible = _destructive_reset_configured()
     return {
         "total_records": sum(counts.values()),
         "table_counts": counts,
-        "reset_available": False,
+        "reset_mode": "clear_all",
+        "reset_available": eligible,
         "has_recoverable_backup": False,
         "backup_reference": None,
-        "unavailable_reason": reason,
-        "required_confirmation_phrase": "RESET AXEOM DATA",
-        "warning": "Reset is disabled to prevent irreversible data loss. No rows will be deleted."
-    }
-
-
-def execute_reset(confirmation_phrase: str, performed_by: str = "owner"):
-    """
-    Fail closed: the old routine deleted business tables and called a seeder
-    even when Vercel had no baseline CSVs, falsely claiming success.
-    Never destroy production data without verified restoration capability.
-    """
-    if str(confirmation_phrase).strip() != "RESET AXEOM DATA":
-        return {
-            "status": "error",
-            "message": "Invalid confirmation phrase. You must type exactly 'RESET AXEOM DATA' to proceed."
-        }
-    return {
-        "status": "error",
-        "verified_restoration": False,
-        "message": (
-            "Safe reset is unavailable: a verified, immutable October 6 baseline "
-            "and tested atomic restoration procedure must be installed first. "
-            "No records were deleted or changed."
+        "unavailable_reason": (
+            None if eligible else
+            "For security, the owner must configure a unique OWNER_PIN (6+ characters) "
+            "and SECRET_KEY (32+ characters) in Vercel before a destructive reset is allowed."
+        ),
+        "required_confirmation_phrase": "DELETE ALL BUSINESS DATA",
+        "warning": (
+            "IRREVERSIBLE: Deletes all clients, contacts, invoices, payments, bookings, "
+            "messages, leads, production work, classifications, revisions, uploads and "
+            "owner decisions. The challenge baseline will NOT be restored. "
+            "Create an external backup before continuing if these records matter."
         )
     }
+
+
+def execute_reset(confirmation_phrase: str, performed_by: str = "owner",
+                  expected_total_records=None):
+    """Atomically erase every business table; never claim success after partial deletion.
+
+    Only invoked by an owner-authorized API route. The caller must provide
+    the snapshot's current record count to guard against stale resets.
+    App-settings survives exclusively to keep the intentionally cleared
+    workspace from being automatically refilled on process restart.
+    """
+    if str(confirmation_phrase).strip() != "DELETE ALL BUSINESS DATA":
+        return {"status": "error", "message": "Type exactly DELETE ALL BUSINESS DATA."}
+
+    if not _destructive_reset_configured():
+        return {
+            "status": "error",
+            "message": "Reset blocked: configure a strong, non-default OWNER_PIN and SECRET_KEY first."
+        }
+
+    if isinstance(expected_total_records, bool):
+        return {"status": "error", "message": "Invalid preview count."}
+    try:
+        expected = int(expected_total_records)
+        if str(expected_total_records).strip() != str(expected) or expected < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return {
+            "status": "error",
+            "message": "Refresh the Reset screen; a valid preview count is required."
+        }
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if is_postgres():
+            # An ACCESS EXCLUSIVE lock prevents concurrent imports from writing
+            # to business tables in the middle of the wipe.
+            for table in sorted(CLEARABLE_TABLES):
+                cur.execute(f"LOCK TABLE {table} IN ACCESS EXCLUSIVE MODE")
+        else:
+            cur.execute("BEGIN IMMEDIATE")
+
+        before = {}
+        for table in CLEARABLE_TABLES:
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            before[table] = int(cur.fetchone()[0])
+        found = sum(before.values())
+        if found != expected:
+            conn.rollback()
+            return {
+                "status": "error",
+                "message": f"Dataset changed since preview ({expected} vs {found} records). Refresh and confirm again."
+            }
+
+        for table in CLEARABLE_TABLES:
+            cur.execute(f"DELETE FROM {table}")
+
+        # Keep the database schema and a lifecycle marker, not business data.
+        cur.execute("""INSERT INTO app_settings (key, value) VALUES (?, ?)
+                       ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+                    ("dataset_cleared", "1"))
+        cur.execute("""INSERT INTO app_settings (key, value) VALUES (?, ?)
+                       ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+                    ("cleared_at", datetime.datetime.now(datetime.timezone.utc).isoformat()))
+
+        after = {}
+        for table in CLEARABLE_TABLES:
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            after[table] = int(cur.fetchone()[0])
+        if any(after.values()):
+            raise RuntimeError("Incomplete wipe: one or more tables still have rows.")
+        conn.commit()
+        return {
+            "status": "success",
+            "cleared": True,
+            "deleted_records": found,
+            "table_counts_before": before,
+            "table_counts_after": after,
+            "message": f"All {found} business records were permanently deleted. You can upload new CSV files to start fresh."
+        }
+    except Exception:
+        conn.rollback()
+        # Avoid leaking connection/database details to the browser.
+        return {"status": "error", "message": "Reset failed; database transaction rolled back. No partial success reported."}
+    finally:
+        conn.close()
 
 
 def get_audit_logs(limit: int = 100):
