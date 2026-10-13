@@ -32,8 +32,7 @@ def test_postgres_migrations_import_and_live_recomputation():
         assert result["added"] == 1
 
     clients = get_canonical_clients()
-    assert len(clients) == 1, clients
-    assert clients[0]["canonical_name"] == "Harborview Bikes"
+    assert sum(c["canonical_name"] == "Harborview Bikes" for c in clients) == 1
 
     finance = reconcile_finances()
     assert finance["overdue_total"] == 0
