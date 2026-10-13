@@ -569,97 +569,69 @@ def revert_upload(upload_id: int, performed_by: str = "owner"):
 
 def get_reset_preview():
     """
-    Pre-flight inspection for Reset Business Data.
-    Shows table counts and verifies backup status.
+    Read-only inspection. Count CURRENT database rows but never treat a
+    PostgreSQL connection, Neon branch name, or a stale backup filename as
+    proof that a certified clean baseline snapshot can be restored.
+
+    The repository contains no deployable pristine source CSVs, and the
+    legacy bundled JSON backups contain synthetic test records. Until an
+    operator provisions and validates an immutable original snapshot and a
+    transactional restorer, database-wide reset must stay disabled.
     """
     conn = get_db()
     cur = conn.cursor()
-
     tables = [
         "clients", "third_party_payers", "bookings", "invoices", "payments",
         "production_board", "leads", "messages", "costs", "team",
         "dataset_revisions", "file_uploads", "owner_decisions"
     ]
-
     counts = {}
-    total_records = 0
-    for t in tables:
+    for table in tables:
         try:
-            cur.execute(f"SELECT COUNT(*) FROM {t}")
-            cnt = cur.fetchone()[0]
-            counts[t] = cnt
-            total_records += cnt
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            counts[table] = int(cur.fetchone()[0])
         except Exception:
-            counts[t] = 0
-
+            # This endpoint must not hide schema/permission failures as zeros.
+            conn.close()
+            raise
     conn.close()
-
-    has_backup = False
-    backup_path = "axeom_genesis_backup.db" if not is_postgres() else "neon_branch_main"
-    if os.path.exists("axeom.db") or is_postgres():
-        has_backup = True
-
+    reason = (
+        "No independently verified, restorable October 6 baseline is configured. "
+        "The original CSV source files are absent from this deployment; a connected "
+        "Neon branch is not a backup. The checked-in legacy JSON exports include "
+        "synthetic test data and must not be treated as a pristine restore point."
+    )
     return {
-        "total_records": total_records,
+        "total_records": sum(counts.values()),
         "table_counts": counts,
-        "has_recoverable_backup": has_backup,
-        "backup_reference": backup_path,
+        "reset_available": False,
+        "has_recoverable_backup": False,
+        "backup_reference": None,
+        "unavailable_reason": reason,
         "required_confirmation_phrase": "RESET AXEOM DATA",
-        "warning": "This operation will reset modified records back to certified baseline."
+        "warning": "Reset is disabled to prevent irreversible data loss. No rows will be deleted."
     }
 
 
 def execute_reset(confirmation_phrase: str, performed_by: str = "owner"):
     """
-    Executes a guarded business data reset.
-    Requires exact confirmation phrase: 'RESET AXEOM DATA'.
-    Creates a pre-reset backup and re-initializes to pristine baseline.
+    Fail closed: the old routine deleted business tables and called a seeder
+    even when Vercel had no baseline CSVs, falsely claiming success.
+    Never destroy production data without verified restoration capability.
     """
     if str(confirmation_phrase).strip() != "RESET AXEOM DATA":
         return {
             "status": "error",
             "message": "Invalid confirmation phrase. You must type exactly 'RESET AXEOM DATA' to proceed."
         }
-
-    # Backup local database if SQLite
-    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    if not is_postgres():
-        db_path = os.environ.get("AXEOM_DB_PATH", "axeom.db")
-        if os.path.exists(db_path):
-            backup_file = f"axeom_backup_{now_str}.db"
-            shutil.copy2(db_path, backup_file)
-
-    conn = get_db()
-    cur = conn.cursor()
-
-    # Clear mutable business tables
-    clear_tables = [
-        "bookings", "invoices", "payments", "production_board",
-        "leads", "messages", "costs", "team", "owner_decisions",
-        "file_uploads", "dataset_revisions", "message_classifications", "audit_logs"
-    ]
-    for t in clear_tables:
-        try:
-            cur.execute(f"DELETE FROM {t}")
-        except Exception:
-            pass
-
-    conn.commit()
-    conn.close()
-
-    # Re-seed to pristine challenge baseline
-    from services.db import seed_db_if_empty
-    seed_db_if_empty()
-
-    log_audit_action("reset", "all_tables", "system", {
-        "timestamp": now_str,
-        "reseeded": True
-    }, performed_by=performed_by)
-
     return {
-        "status": "success",
-        "message": "Business dataset has been successfully reset to the certified baseline.",
-        "reset_timestamp": now_str
+        "status": "error",
+        "verified_restoration": False,
+        "message": (
+            "Safe reset is unavailable: a verified, immutable October 6 baseline "
+            "and tested atomic restoration procedure must be installed first. "
+            "No records were deleted or changed."
+        )
     }
 
 
