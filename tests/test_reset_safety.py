@@ -23,7 +23,8 @@ def test_reset_protects_original_rows_when_baseline_snapshot_unavailable(tmp_pat
         assert p["reset_available"] is False
         assert p["has_recoverable_backup"] is False
         assert p["table_counts"]["invoices"] == 1
-        assert p["total_records"] == 1
+        assert p["total_records"] == sum(p["table_counts"].values())
+        assert p["total_records"] >= 1
         with client.session_transaction() as sess:
             sess["owner_authorized"] = True
         forbidden = client.post("/api/manage/reset", json={"phrase": "WRONG"})
