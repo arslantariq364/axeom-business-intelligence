@@ -24,72 +24,8 @@ CHURN_ANALYSIS = {
     )
 }
 
-MARKETING_CHANNELS = {
-    "recommended_channel": "Website form",
-    "why": "Website form delivers the highest absolute gross profit ($11,424.70) and highest gross margin (61.0%) across all channels, converting 45.0% of incoming leads (9 of 20) with near-zero collection friction ($18,740.00 collected of $19,940.00 invoiced). While Referral delivers a higher conversion rate (71.4%, 5/7 leads, $32,100 invoiced), Website form provides scalable organic acquisition without dependency on partner commissions or ad spend. In contrast, Meta ads generated 27 leads but suffered low conversion (25.9%), severe collection delays, and razor-thin gross profit ($2,267.00, 15.2% margin before ad spend).",
-    "channels": [
-        {
-            "name": "Website form",
-            "leads": 20,
-            "converted": 9,
-            "conversion_rate": "45.0%",
-            "revenue_invoiced": 19940.0,
-            "cash_collected": 18740.0,
-            "production_cost": 7315.30,
-            "gross_profit": 11424.70,
-            "gross_margin": "61.0%",
-            "status": "⭐ Top Profitable Channel"
-        },
-        {
-            "name": "Referral",
-            "leads": 7,
-            "converted": 5,
-            "conversion_rate": "71.4%",
-            "revenue_invoiced": 32100.0,
-            "cash_collected": 28650.0,
-            "production_cost": 12150.0,
-            "gross_profit": 16500.0,
-            "gross_margin": "57.6%",
-            "status": "High Ticket / High Trust"
-        },
-        {
-            "name": "Meta ads",
-            "leads": 27,
-            "converted": 7,
-            "conversion_rate": "25.9%",
-            "revenue_invoiced": 14900.0,
-            "cash_collected": 9850.0,
-            "production_cost": 7583.0,
-            "gross_profit": 2267.0,
-            "gross_margin": "15.2%",
-            "status": "Low Conversion / Collection Friction"
-        },
-        {
-            "name": "Google search",
-            "leads": 18,
-            "converted": 5,
-            "conversion_rate": "27.8%",
-            "revenue_invoiced": 8200.0,
-            "cash_collected": 6700.0,
-            "production_cost": 3400.0,
-            "gross_profit": 3300.0,
-            "gross_margin": "49.3%",
-            "status": "Moderate Efficiency"
-        },
-        {
-            "name": "Walk-in / Direct",
-            "leads": 12,
-            "converted": 3,
-            "conversion_rate": "25.0%",
-            "revenue_invoiced": 4500.0,
-            "cash_collected": 4500.0,
-            "production_cost": 1800.0,
-            "gross_profit": 2700.0,
-            "gross_margin": "60.0%",
-            "status": "Local Studio Foot Traffic"
-        }
-    ]
-}
+# Marketing conversion metrics are computed from leads inside get_analytics().
+# Historical marketing-profit estimates were withdrawn after independent audit.
 
 LIMITATIONS = [
     {
