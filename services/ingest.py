@@ -13,6 +13,60 @@ import json
 import datetime
 from pathlib import Path
 from services.db import get_db, clean_float, get_current_revision
+import math
+from services.identity import resolve_client, THIRD_PARTY_PAYERS
+
+def _valid_money(value):
+    """Reject malformed monetary fields; never silently turn bad data into $0."""
+    raw = str(value if value is not None else "").strip()
+    if not raw or not re.fullmatch(r'-?\$?(?:\d+(?:,\d{3})*|\d+)(?:\.\d{1,2})?', raw):
+        return None
+    amount = clean_float(raw)
+    return amount if math.isfinite(amount) and amount >= 0 else None
+
+def _valid_date(value, required=True):
+    """Accept ISO plus dated export formats; reject impossible dates."""
+    raw = str(value or "").strip()
+    if not raw:
+        return not required
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            datetime.datetime.strptime(raw, fmt)
+            return True
+        except ValueError:
+            pass
+    return False
+
+def _ensure_client(cur, name, email=""):
+    """Create only new, evidence-backed paying/booking clients, not every lead."""
+    name = (name or "").strip()
+    email = (email or "").strip().lower()
+    if not name:
+        return
+    payer_names = {alias.lower() for p in THIRD_PARTY_PAYERS for alias in ([p["name"]] + p.get("aliases", []))}
+    if name.lower() in payer_names:
+        return
+    if resolve_client(name=name, email=email):
+        return
+    # Avoid falsely merging distinct businesses based on fuzzy substrings.
+    cur.execute("SELECT id, canonical_name, emails FROM clients")
+    for rec in cur.fetchall():
+        current_name = str(rec["canonical_name"] or "").strip().lower()
+        if current_name == name.lower():
+            return
+        try:
+            known_emails = json.loads(rec["emails"] or "[]")
+        except (TypeError, ValueError):
+            known_emails = []
+        if email and email in [str(e).lower() for e in known_emails]:
+            return
+    client_id = "U" + hashlib.sha256((email or name.lower()).encode("utf-8")).hexdigest()[:14]
+    cur.execute("""INSERT INTO clients
+        (id, canonical_name, primary_contact, emails, phones, payer_aliases, status, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING""",
+        (client_id, name, "", json.dumps([email] if email else []),
+         "[]", json.dumps([name]), "New client", "Discovered from uploaded transaction"))
+
 
 UPLOAD_DIR_ENV = os.environ.get("AXEOM_UPLOAD_DIR")
 if UPLOAD_DIR_ENV:
@@ -39,7 +93,7 @@ REQUIRED_COLUMNS = {
 
 def decode_bytes(content_bytes):
     """Attempts UTF-8, then UTF-8-sig (BOM), then Latin-1 decoding."""
-    for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252"]:
+    for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
         try:
             return content_bytes.decode(enc)
         except UnicodeDecodeError:
@@ -62,7 +116,7 @@ def detect_file_role(filename, text_content):
 
     # 2. Check CSV headers
     header_raw = first_few_lines[0].lower()
-    headers = [h.strip().strip('"').strip("'") for h in header_raw.split(",")]
+    headers = [h.strip().strip('"').strip("'") for h in next(csv.reader([header_raw]))]
 
     header_set = set(headers)
 
@@ -165,7 +219,7 @@ def process_file_upload(filename, content_bytes):
     # 2. Schema Validation (Headers & Duplicate Headers)
     if role != "messages":
         first_line = text.strip().splitlines()[0]
-        raw_headers = [h.strip().strip('"').strip("'") for h in first_line.split(",")]
+        raw_headers = [h.strip().strip('"').strip("'") for h in next(csv.reader([first_line]))]
         
         # Check duplicate headers
         if len(raw_headers) != len(set(raw_headers)):
@@ -211,7 +265,11 @@ def process_file_upload(filename, content_bytes):
                     rejected_count += 1
                     row_errors.append(f"Row {idx}: missing invoice_no")
                     continue
-                amt = clean_float(r.get("amount", 0.0))
+                amt = _valid_money(r.get("amount"))
+                if amt is None or not _valid_date(r.get("issued"), required=False) or not _valid_date(r.get("due")):
+                    rejected_count += 1
+                    row_errors.append(f"Row {idx}: invalid invoice amount or date")
+                    continue
                 bill_to = r.get("bill_to", "").strip()
                 email = r.get("email", "").strip()
                 issued = r.get("issued", "").strip()
@@ -219,6 +277,11 @@ def process_file_upload(filename, content_bytes):
                 status = r.get("status", "").strip()
                 memo = r.get("memo", "").strip()
 
+                if not bill_to or not bill_to.strip():
+                    rejected_count += 1
+                    row_errors.append(f"Row {idx}: missing billed client")
+                    continue
+                _ensure_client(cur, bill_to, email)
                 cur.execute("SELECT amount, due, status, bill_to FROM invoices WHERE invoice_no = ?", (inv_no,))
                 existing = cur.fetchone()
                 if existing is None:
@@ -246,7 +309,11 @@ def process_file_upload(filename, content_bytes):
                     rejected_count += 1
                     row_errors.append(f"Row {idx}: missing payment_id")
                     continue
-                amt = clean_float(r.get("amount", 0.0))
+                amt = _valid_money(r.get("amount"))
+                if amt is None or not _valid_date(r.get("date")):
+                    rejected_count += 1
+                    row_errors.append(f"Row {idx}: invalid payment amount or date")
+                    continue
                 p_date = r.get("date", "").strip()
                 payer = r.get("payer", "").strip()
                 payer_email = r.get("payer_email", "").strip()
@@ -280,14 +347,19 @@ def process_file_upload(filename, content_bytes):
                     rejected_count += 1
                     row_errors.append(f"Row {idx}: missing booking_id")
                     continue
-                price = clean_float(r.get("price", 0.0))
+                price = _valid_money(r.get("price", 0.0))
+                if price is None or not _valid_date(r.get("date")):
+                    rejected_count += 1
+                    row_errors.append(f"Row {idx}: invalid booking price or date")
+                    continue
                 b_date = r.get("date", "").strip()
                 client_name = r.get("client_name", "").strip()
                 email = r.get("email", "").strip()
                 service = r.get("service", "").strip()
                 status = r.get("status", "").strip()
 
-                cur.execute("SELECT price, status, client_name, service FROM bookings WHERE booking_id = ?", (b_id,))
+                _ensure_client(cur, client_name, email)
+                cur.execute("SELECT price, status, client_name, service, booking_date, email FROM bookings WHERE booking_id = ?", (b_id,))
                 existing = cur.fetchone()
                 if existing is None:
                     cur.execute("""
@@ -297,7 +369,8 @@ def process_file_upload(filename, content_bytes):
                     added_count += 1
                 else:
                     if (existing["price"] == price and existing["status"] == status and 
-                        existing["client_name"] == client_name and existing["service"] == service):
+                        existing["client_name"] == client_name and existing["service"] == service and
+                        existing["booking_date"] == b_date and existing["email"] == email):
                         skipped_count += 1
                     else:
                         cur.execute("""
@@ -442,6 +515,16 @@ def process_file_upload(filename, content_bytes):
                     else:
                         cur.execute("UPDATE team SET role=?, joined=?, pay=?, source_file=? WHERE name=?", (role_val, joined, pay, filename, name))
                         updated_count += 1
+
+        if rejected_count and not (added_count or updated_count):
+            cur.execute("ROLLBACK")
+            conn.close()
+            return {
+                "status": "error", "message": f"No valid rows imported from '{filename}'.",
+                "file_role": role, "added": 0, "updated": 0,
+                "skipped": skipped_count, "rejected": rejected_count,
+                "needs_review": 0, "errors": row_errors
+            }
 
         # 3. Increment Dataset Revision if data mutated
         new_rev_id = None
