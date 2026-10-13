@@ -14,7 +14,7 @@ import datetime
 from pathlib import Path
 from services.db import get_db, clean_float, get_current_revision
 import math
-from services.identity import resolve_client, THIRD_PARTY_PAYERS
+from services.identity import resolve_client, THIRD_PARTY_PAYERS, CANONICAL_CLIENTS
 
 def _valid_money(value):
     """Reject malformed monetary fields; never silently turn bad data into $0."""
@@ -46,6 +46,12 @@ def _ensure_client(cur, name, email=""):
     payer_names = {alias.lower() for p in THIRD_PARTY_PAYERS for alias in ([p["name"]] + p.get("aliases", []))}
     if name.lower() in payer_names:
         return
+    # Known aliases with conflicting contact data need human review, not an
+    # automatically created duplicate account.
+    for known in CANONICAL_CLIENTS:
+        aliases = [known["canonical_name"]] + known.get("payer_aliases", [])
+        if name.lower() in {str(alias).strip().lower() for alias in aliases}:
+            return
     if resolve_client(name=name, email=email):
         return
     # Avoid falsely merging distinct businesses based on fuzzy substrings.
