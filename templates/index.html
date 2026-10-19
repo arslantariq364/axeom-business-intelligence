@@ -251,17 +251,18 @@
           </p>
 
           <div id="upload-dropzone" class="upload-dropzone">
-            <input type="file" id="file-input" style="display: none;" accept=".csv,.txt">
+            <input type="file" id="file-input" style="display: none;" accept=".csv,.txt" multiple>
             <div class="upload-icon-circle">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
-            <h4 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; color: var(--text-main);">Drop CSV or messages.txt file here</h4>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">or click to browse from your device</p>
+            <h4 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; color: var(--text-main);">Drop CSV or messages.txt files here</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">or click to browse multiple files in one go</p>
             <div style="margin-top: 14px; font-size: 0.72rem; color: var(--text-dim);">
-              Supported: invoices.csv, payments.csv, bookings.csv, production_board.csv, leads.csv, messages.txt
+              Select any or all 8 pack file types together: bookings, invoices, payments, production_board, leads, messages.txt, costs, team
             </div>
           </div>
 
+          <div id="upload-queue-box" style="display: none; margin-bottom: 20px;"></div>
           <div id="upload-status-box" style="display: none; margin-bottom: 20px;"></div>
         </div>
       </section>

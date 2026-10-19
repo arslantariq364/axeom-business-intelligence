@@ -1309,7 +1309,10 @@ function initUpload() {
   const fileInput = document.getElementById('file-input');
   if (!dropzone || !fileInput) return;
 
-  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('click', (e) => {
+    if (e.target.closest('.batch-retry-btn')) return;
+    fileInput.click();
+  });
 
   dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -1323,31 +1326,85 @@ function initUpload() {
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      handleFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesUpload(Array.from(e.dataTransfer.files));
     }
   });
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-      handleFileUpload(fileInput.files[0]);
+    if (fileInput.files && fileInput.files.length > 0) {
+      handleFilesUpload(Array.from(fileInput.files));
+      fileInput.value = ''; // Reset for re-selection
     }
   });
 }
 
-async function handleFileUpload(file) {
-  const statusBox = document.getElementById('upload-status-box');
-  if (!statusBox) return;
+function sniffFileRoleClient(name) {
+  const lower = name.toLowerCase();
+  if (lower.includes('invoice')) return 'invoices';
+  if (lower.includes('payment') || lower.includes('pay')) return 'payments';
+  if (lower.includes('booking')) return 'bookings';
+  if (lower.includes('production') || lower.includes('board')) return 'production_board';
+  if (lower.includes('lead')) return 'leads';
+  if (lower.includes('message') || lower.endsWith('.txt')) return 'messages';
+  if (lower.includes('cost')) return 'costs';
+  if (lower.includes('team')) return 'team';
+  return 'csv/data';
+}
 
-  statusBox.style.display = 'block';
-  statusBox.innerHTML = `
-    <div style="padding: 16px; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-md); text-align: center;">
-      <p>Analyzing and staging <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB)...</p>
-    </div>
-  `;
+let lastFailedBatchFiles = [];
+
+async function handleFilesUpload(files) {
+  const queueBox = document.getElementById('upload-queue-box');
+  const statusBox = document.getElementById('upload-status-box');
+  if (!queueBox && !statusBox) return;
+
+  const totalFiles = files.length;
+  if (totalFiles === 0) return;
+
+  if (queueBox) {
+    queueBox.style.display = 'block';
+    queueBox.innerHTML = `
+      <div class="upload-queue-card">
+        <div class="upload-queue-header">
+          <h4 style="font-size: 1rem; font-weight: 800; margin: 0; color: var(--text-main);">
+            Batch Upload Queue (${totalFiles} ${totalFiles === 1 ? 'file' : 'files'})
+          </h4>
+          <span class="badge badge-info">Staging & Validating...</span>
+        </div>
+        ${files.map((file, idx) => `
+          <div class="queue-item" id="queue-item-${idx}">
+            <div class="queue-item-header">
+              <span class="queue-filename">
+                📄 ${escapeHtml(file.name)}
+                <span class="badge" style="background:var(--surface); border:1px solid var(--card-border); font-size:0.7rem;">
+                  ${sniffFileRoleClient(file.name)}
+                </span>
+              </span>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">
+                ${(file.size / 1024).toFixed(1)} KB • <span id="queue-status-${idx}" style="color:var(--info);">Processing...</span>
+              </span>
+            </div>
+            <div class="queue-progress-track">
+              <div class="queue-progress-fill" id="queue-fill-${idx}" style="width: 50%;"></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  if (statusBox) {
+    statusBox.style.display = 'none';
+    statusBox.innerHTML = '';
+  }
 
   const formData = new FormData();
-  formData.append('file', file);
+  if (totalFiles === 1) {
+    formData.append('file', files[0]);
+  } else {
+    files.forEach(f => formData.append('files', f));
+  }
 
   try {
     const res = await fetch('/api/upload', {
@@ -1356,80 +1413,225 @@ async function handleFileUpload(file) {
     });
     const result = await res.json();
 
-    if (result.status === 'success') {
-      const added = result.added || 0;
-      const updated = result.updated || 0;
-      const skipped = result.skipped || 0;
-      const rejected = result.rejected || 0;
-      const role = result.file_role || 'unknown';
-      const hashStr = result.sha256 ? result.sha256.substring(0, 16) + '...' : '';
+    // Mark queue items complete
+    files.forEach((_, idx) => {
+      const fill = document.getElementById(`queue-fill-${idx}`);
+      if (fill) fill.style.width = '100%';
+    });
 
-      let badgeTag = '<span class="badge badge-success">SUCCESS</span>';
-      if (rejected > 0) {
-        badgeTag = '<span class="badge badge-warning">PARTIAL SUCCESS</span>';
-      }
-
-      let errorList = '';
-      if (result.errors && result.errors.length > 0) {
-        errorList = `<div style="margin-top: 8px; font-size: 0.78rem; color: var(--danger);">Rejections / Warnings: ${result.errors.map(e => escapeHtml(e)).join('; ')}</div>`;
-      }
-
-      statusBox.innerHTML = `
-        <div style="padding: 16px; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--success); font-weight: 800; margin: 0;">✅ File Ingestion Completed</h4>
-            ${badgeTag}
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; font-size: 0.8rem; background: var(--surface); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
-            <div><strong>Role:</strong> ${escapeHtml(role)}</div>
-            <div><strong style="color:var(--success);">Added:</strong> ${added}</div>
-            <div><strong style="color:var(--info);">Updated:</strong> ${updated}</div>
-            <div><strong style="color:var(--text-muted);">Skipped:</strong> ${skipped}</div>
-            <div><strong style="color:var(--danger);">Rejected:</strong> ${rejected}</div>
-          </div>
-          ${errorList}
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-            SHA-256 Hash: <code>${hashStr}</code> • Revision: <code>${escapeHtml(result.revision_id || 'N/A')}</code>
-          </div>
-        </div>
-      `;
-      // Reload app state immediately
-      await loadAppState();
-    } else if (result.status === 'duplicate_file') {
-      statusBox.innerHTML = `
-        <div style="padding: 16px; background: var(--surface); border: 1px solid var(--info-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--info); font-weight: 800; margin: 0;">ℹ️ Duplicate File Skipped (Idempotent)</h4>
-            <span class="badge badge-info">DUPLICATE</span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
-          <div style="font-size: 0.78rem; color: var(--text-muted);">
-            Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
-          </div>
-        </div>
-      `;
+    if (totalFiles > 1 || result.summary) {
+      renderBatchUploadResult(result, files);
     } else {
-      let errorDetails = '';
-      if (result.errors && result.errors.length > 0) {
-        errorDetails = `<ul style="margin: 6px 0 0 16px; font-size: 0.8rem; color: var(--danger);">${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
-      }
+      renderSingleUploadResult(result, files[0]);
+    }
+
+    // Refresh dashboard state after ingestion finishes
+    await loadAppState();
+  } catch (err) {
+    if (statusBox) {
+      statusBox.style.display = 'block';
       statusBox.innerHTML = `
         <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--danger); font-weight: 800; margin: 0;">❌ Validation / Ingestion Error</h4>
-            <span class="badge badge-danger">REJECTED</span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
-          ${errorDetails}
+          <h4 style="color:var(--danger); font-weight: 800; margin: 0 0 4px 0;">Network / Upload Error</h4>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin: 0;">${escapeHtml(err.message)}</p>
         </div>
       `;
     }
-  } catch (err) {
+  }
+}
+
+function renderBatchUploadResult(result, originalFiles) {
+  const statusBox = document.getElementById('upload-status-box');
+  const queueBox = document.getElementById('upload-queue-box');
+  if (queueBox) queueBox.style.display = 'none';
+  if (!statusBox) return;
+
+  statusBox.style.display = 'block';
+
+  const summaryText = result.summary || `${result.total_files || 0} files processed.`;
+  const isAllSuccess = result.status === 'success';
+  const isPartial = result.status === 'partial_success';
+  const cardClass = isAllSuccess ? 'success' : (isPartial ? 'partial' : 'error');
+
+  const files = result.files || [];
+  lastFailedBatchFiles = files.filter(f => f.status === 'error').map(f => f.filename);
+
+  statusBox.innerHTML = `
+    <div class="batch-summary-card ${cardClass}">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <h4 style="font-size: 1.1rem; font-weight: 800; margin: 0; color: var(--text-main);">
+          ${isAllSuccess ? '✅' : (isPartial ? '⚠️' : '❌')} Batch Upload Finished
+        </h4>
+        <span class="badge ${isAllSuccess ? 'badge-success' : (isPartial ? 'badge-warning' : 'badge-danger')}">
+          ${escapeHtml(result.status.toUpperCase())}
+        </span>
+      </div>
+      <p style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 8px 0 0 0;">
+        ${escapeHtml(summaryText)}
+      </p>
+
+      <div class="batch-summary-counts">
+        <div class="batch-count-box">
+          <div class="batch-count-val">${result.total_files || 0}</div>
+          <div class="batch-count-lbl">Total Files</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--success);">${result.imported_count || 0}</div>
+          <div class="batch-count-lbl">Imported</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--info);">${result.duplicate_count || 0}</div>
+          <div class="batch-count-lbl">Duplicates</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--danger);">${result.rejected_count || 0}</div>
+          <div class="batch-count-lbl">Rejected</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--success);">${result.added || 0}</div>
+          <div class="batch-count-lbl">Rows Added</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--info);">${result.updated || 0}</div>
+          <div class="batch-count-lbl">Rows Updated</div>
+        </div>
+      </div>
+
+      <div class="batch-table-container">
+        <table class="batch-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Detected Role</th>
+              <th>Status</th>
+              <th>Added</th>
+              <th>Updated</th>
+              <th>Skipped</th>
+              <th>Rejected</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${files.map(f => {
+              let badgeCls = 'badge-success';
+              let badgeLbl = 'Imported';
+              if (f.status === 'duplicate_file') {
+                badgeCls = 'badge-info';
+                badgeLbl = 'Duplicate';
+              } else if (f.status === 'error') {
+                badgeCls = 'badge-danger';
+                badgeLbl = 'Rejected';
+              }
+              const errs = (f.errors && f.errors.length) ? f.errors.map(e => escapeHtml(e)).join('; ') : escapeHtml(f.message || '-');
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(f.filename)}</strong></td>
+                  <td><span class="badge" style="background:var(--surface-hover);">${escapeHtml(f.file_role || 'unknown')}</span></td>
+                  <td><span class="badge ${badgeCls}">${badgeLbl}</span></td>
+                  <td style="color:var(--success);">${f.added || 0}</td>
+                  <td style="color:var(--info);">${f.updated || 0}</td>
+                  <td style="color:var(--text-muted);">${f.skipped || 0}</td>
+                  <td style="color:var(--danger);">${f.rejected || 0}</td>
+                  <td style="font-size:0.75rem; color:${f.status === 'error' ? 'var(--danger)' : 'var(--text-muted)'};">${errs}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${lastFailedBatchFiles.length > 0 ? `
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 0.82rem; color: var(--danger);">
+            ${lastFailedBatchFiles.length} file(s) failed validation. Inspect errors above or retry corrected versions.
+          </span>
+          <button class="batch-retry-btn" onclick="retryFailedUploads()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Select & Retry Failed Files
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function retryFailedUploads() {
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) fileInput.click();
+}
+
+function renderSingleUploadResult(result, file) {
+  const statusBox = document.getElementById('upload-status-box');
+  const queueBox = document.getElementById('upload-queue-box');
+  if (queueBox) queueBox.style.display = 'none';
+  if (!statusBox) return;
+
+  statusBox.style.display = 'block';
+
+  if (result.status === 'success') {
+    const added = result.added || 0;
+    const updated = result.updated || 0;
+    const skipped = result.skipped || 0;
+    const rejected = result.rejected || 0;
+    const role = result.file_role || 'unknown';
+    const hashStr = result.sha256 ? result.sha256.substring(0, 16) + '...' : '';
+
+    let badgeTag = '<span class="badge badge-success">SUCCESS</span>';
+    if (rejected > 0) {
+      badgeTag = '<span class="badge badge-warning">PARTIAL SUCCESS</span>';
+    }
+
+    let errorList = '';
+    if (result.errors && result.errors.length > 0) {
+      errorList = `<div style="margin-top: 8px; font-size: 0.78rem; color: var(--danger);">Rejections / Warnings: ${result.errors.map(e => escapeHtml(e)).join('; ')}</div>`;
+    }
+
+    statusBox.innerHTML = `
+      <div style="padding: 16px; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--success); font-weight: 800; margin: 0;">✅ File Ingestion Completed</h4>
+          ${badgeTag}
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; font-size: 0.8rem; background: var(--surface); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+          <div><strong>Role:</strong> ${escapeHtml(role)}</div>
+          <div><strong style="color:var(--success);">Added:</strong> ${added}</div>
+          <div><strong style="color:var(--info);">Updated:</strong> ${updated}</div>
+          <div><strong style="color:var(--text-muted);">Skipped:</strong> ${skipped}</div>
+          <div><strong style="color:var(--danger);">Rejected:</strong> ${rejected}</div>
+        </div>
+        ${errorList}
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+          SHA-256 Hash: <code>${hashStr}</code> • Revision: <code>${escapeHtml(result.revision_id || 'N/A')}</code>
+        </div>
+      </div>
+    `;
+  } else if (result.status === 'duplicate_file') {
+    statusBox.innerHTML = `
+      <div style="padding: 16px; background: var(--surface); border: 1px solid var(--info-border); border-radius: var(--radius-md);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--info); font-weight: 800; margin: 0;">ℹ️ Duplicate File Skipped (Idempotent)</h4>
+          <span class="badge badge-info">DUPLICATE</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+        <div style="font-size: 0.78rem; color: var(--text-muted);">
+          Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
+        </div>
+      </div>
+    `;
+  } else {
+    let errorDetails = '';
+    if (result.errors && result.errors.length > 0) {
+      errorDetails = `<ul style="margin: 6px 0 0 16px; font-size: 0.8rem; color: var(--danger);">${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+    }
     statusBox.innerHTML = `
       <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-        <h4 style="color:var(--danger); font-weight: 800; margin: 0 0 4px 0;">Network Error</h4>
-        <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(err.message)}</p>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--danger); font-weight: 800; margin: 0;">❌ Validation / Ingestion Error</h4>
+          <span class="badge badge-danger">REJECTED</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
+        ${errorDetails}
       </div>
     `;
   }

@@ -1003,6 +1003,164 @@ table.data-table tr:hover td {
   font-size: 1.4rem;
 }
 
+/* Batch Upload Queue & Summary */
+.upload-queue-card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.upload-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.queue-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  background: var(--surface-hover);
+  transition: var(--transition);
+}
+
+.queue-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.queue-filename {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+
+.queue-progress-fill {
+  height: 100%;
+  background: var(--accent-lime);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.batch-summary-card {
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--card-border);
+}
+
+.batch-summary-card.success {
+  background: var(--success-bg, #F0FDF4);
+  border-color: var(--success-border, #BBF7D0);
+}
+
+.batch-summary-card.partial {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.batch-summary-card.error {
+  background: var(--danger-bg, #FEF2F2);
+  border-color: var(--danger-border, #FECACA);
+}
+
+.batch-summary-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.batch-count-box {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.batch-count-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.batch-count-lbl {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.batch-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  margin-top: 14px;
+}
+
+.batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.batch-table th, .batch-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.batch-table th {
+  background: var(--surface-hover);
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.batch-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: var(--text-main);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: none;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.batch-retry-btn:hover {
+  opacity: 0.9;
+}
+
 /* Search Box */
 .search-box {
   display: flex;

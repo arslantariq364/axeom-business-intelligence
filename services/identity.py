@@ -441,13 +441,21 @@ def _get_client_lookup_structures():
             candidates = CANONICAL_CLIENTS
 
     name_map = {}
+    norm_name_map = {}
     email_map = {}
     phone_map = {}
+    import re
 
     for c in candidates:
-        name_map[str(c["canonical_name"]).strip().lower()] = c
+        c_name_lower = str(c["canonical_name"]).strip().lower()
+        name_map[c_name_lower] = c
+        norm_name_map[re.sub(r'[^a-z0-9]', '', c_name_lower)] = c
+
         for alias in c.get("payer_aliases", []):
-            name_map[str(alias).strip().lower()] = c
+            a_lower = str(alias).strip().lower()
+            name_map[a_lower] = c
+            norm_name_map[re.sub(r'[^a-z0-9]', '', a_lower)] = c
+
         for em in c.get("emails", []):
             email_map[str(em).strip().lower()] = c
         for ph in c.get("phones", []):
@@ -459,6 +467,7 @@ def _get_client_lookup_structures():
         "cleared": cleared,
         "candidates": candidates,
         "name_map": name_map,
+        "norm_name_map": norm_name_map,
         "email_map": email_map,
         "phone_map": phone_map
     }
@@ -481,70 +490,14 @@ def resolve_client_by_name(name):
     if matched:
         return matched
 
+    # 2. Normalized match stripping punctuation and spacing differences
+    import re
+    norm = re.sub(r'[^a-z0-9]', '', name_lower)
+    if norm and norm in structs["norm_name_map"]:
+        return structs["norm_name_map"][norm]
+
     if structs["cleared"]:
         return None
-
-    # Substring checks for prominent matches in legacy dataset
-    for c in structs["candidates"]:
-        cid = c.get("id")
-        if "patel" in name_lower and cid == "C12":
-            return c
-        if ("sarah khan" in name_lower or "khan dental" in name_lower) and cid == "C04":
-            return c
-        if ("imran" in name_lower or "auto spa" in name_lower) and cid == "C24":
-            return c
-        if ("family law" in name_lower or "aisha" in name_lower) and cid == "C18":
-            return c
-        if ("lonestar rg" in name_lower or "lonestar realty group" in name_lower or "whitfield" in name_lower) and cid == "C28":
-            return c
-        if ("dana" in name_lower or "lone star realty" in name_lower) and cid == "C20":
-            return c
-        if ("tlc" in name_lower or "angela price" in name_lower) and cid == "C29":
-            return c
-        if ("mikes roofing" in name_lower or "mike's roofing" in name_lower or "delgado" in name_lower) and cid == "C07":
-            return c
-        if ("prime roofing" in name_lower or "russo" in name_lower) and cid == "C25":
-            return c
-        if ("meridian" in name_lower or "paul grant" in name_lower) and cid == "C08":
-            return c
-        if "northpoint" in name_lower and cid == "C01":
-            return c
-        if ("hustle" in name_lower or "tasha" in name_lower) and cid == "C02":
-            return c
-        if ("founders" in name_lower or "ethan" in name_lower) and cid == "C03":
-            return c
-        if "glow" in name_lower and cid == "C10":
-            return c
-        if "bloom" in name_lower and cid == "C11":
-            return c
-        if "apex" in name_lower and cid == "C13":
-            return c
-        if "crown" in name_lower and cid == "C14":
-            return c
-        if ("oak lane" in name_lower or "oaklane" in name_lower) and cid == "C15":
-            return c
-        if ("brew lab" in name_lower or "brewlab" in name_lower) and cid == "C16":
-            return c
-        if "ironclad" in name_lower and cid == "C17":
-            return c
-        if "elevate" in name_lower and cid == "C19":
-            return c
-        if "harbor" in name_lower and cid == "C21":
-            return c
-        if "sage" in name_lower and cid == "C22":
-            return c
-        if "vega" in name_lower and cid == "C23":
-            return c
-        if "greenway" in name_lower and cid == "C26":
-            return c
-        if "summit" in name_lower and cid == "C27":
-            return c
-        if "luna" in name_lower and cid == "C09":
-            return c
-        if ("cedarstone" in name_lower or "cedar stone" in name_lower or "william vance" in name_lower) and cid == "C05":
-            return c
-        if ("torres law" in name_lower or "mike torres" in name_lower) and "tire" not in name_lower and "auto" not in name_lower and cid == "C06":
-            return c
 
     return None
 

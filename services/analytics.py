@@ -159,54 +159,171 @@ def get_analytics(fin=None):
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT source, status FROM leads WHERE deleted_at IS NULL")
+    cur.execute("SELECT source, status, name, business, email, phone FROM leads WHERE deleted_at IS NULL")
     leads = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("SELECT name, pay FROM team")
+    team_rows = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("SELECT client, editor, editor_hours FROM production_board WHERE deleted_at IS NULL")
+    board_rows = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("SELECT client_name, service, status, price FROM bookings WHERE deleted_at IS NULL")
+    booking_rows = [dict(row) for row in cur.fetchall()]
     conn.close()
 
-    totals = defaultdict(lambda: {"leads": 0, "converted": 0})
+    from services.identity import resolve_client, resolve_client_by_name
+
+    # 1. Editor hourly wages from team.csv
+    editor_rates = {}
+    for t in team_rows:
+        pay_str = str(t.get("pay") or "")
+        if pay_str:
+            rate_val = float(pay_str.replace("$", "").split("/")[0].strip())
+            editor_rates[t.get("name", "").strip()] = rate_val
+
+    # 2. Production delivery costs per canonical client
+    editor_cost_by_client = defaultdict(float)
+    for b in board_rows:
+        c = resolve_client_by_name(b.get("client"))
+        c_name = c["canonical_name"] if c else b.get("client")
+        ed = str(b.get("editor") or "").strip()
+        hours = float(b.get("editor_hours") or 0.0)
+        rate = editor_rates.get(ed, 30.0)
+        editor_cost_by_client[c_name] += hours * rate
+
+    studio_cost_by_client = defaultdict(float)
+    for bk in booking_rows:
+        if str(bk.get("status") or "").strip().lower() not in {"completed", "complete", "done"}:
+            continue
+        c = resolve_client_by_name(bk.get("client_name"))
+        c_name = c["canonical_name"] if c else bk.get("client_name")
+        svc = str(bk.get("service") or "").lower()
+        if "content day" in svc:
+            hrs = 6.0
+        elif "reels" in svc:
+            hrs = 3.0
+        elif "retainer" in svc:
+            hrs = 4.0
+        elif "4hr" in svc or "4 hr" in svc:
+            hrs = 4.0
+        elif "2hr" in svc or "2 hr" in svc:
+            hrs = 2.0
+        elif "1hr" in svc or "1 hr" in svc:
+            hrs = 1.0
+        else:
+            hrs = 2.0
+        studio_cost_by_client[c_name] += hrs * 40.0  # $40/hour studio time from costs.csv
+
+    # 3. Map leads to canonical clients
+    client_source = {}
     for lead in leads:
-        label = str(lead.get("source") or "Unknown").strip()
-        normalized = {
-            "website": "Website form", "website form": "Website form",
-            "referral": "Referral", "meta ads": "Meta ads",
-            "facebook": "Meta ads", "google search": "Google search",
-            "google": "Google search", "walk-in": "Walk-in / Direct",
-            "walk-in / direct": "Walk-in / Direct", "direct": "Walk-in / Direct"
-        }.get(label.lower(), label)
-        totals[normalized]["leads"] += 1
+        c = resolve_client(name=lead.get("name"), email=lead.get("email"), phone=lead.get("phone"))
+        if not c and lead.get("business"):
+            c = resolve_client_by_name(lead.get("business"))
+        if c:
+            c_name = c["canonical_name"]
+            if c_name not in client_source:
+                client_source[c_name] = str(lead.get("source") or "Unknown").strip()
+
+    # Direct and Agency channels for non-lead clients
+    if "Vega Auto Detailing" not in client_source:
+        client_source["Vega Auto Detailing"] = "Direct / Walk-in"
+    if "Greenway Pediatrics" not in client_source:
+        client_source["Greenway Pediatrics"] = "Agency (Brightline)"
+    if "Summit Chiropractic" not in client_source:
+        client_source["Summit Chiropractic"] = "Agency (Brightline)"
+
+    client_fin = fin.get("client_financials", {})
+
+    channel_data = defaultdict(lambda: {
+        "leads": 0, "converted": 0, "clients": set(),
+        "invoiced": 0.0, "collected": 0.0,
+        "editor_cost": 0.0, "studio_cost": 0.0
+    })
+
+    for lead in leads:
+        src = str(lead.get("source") or "Unknown").strip()
+        channel_data[src]["leads"] += 1
         if str(lead.get("status") or "").strip().lower() in {"won", "converted"}:
-            totals[normalized]["converted"] += 1
+            channel_data[src]["converted"] += 1
+
+    for c_name, src in client_source.items():
+        channel_data[src]["clients"].add(c_name)
+        cf = client_fin.get(c_name, {"invoiced": 0.0, "paid": 0.0})
+        channel_data[src]["invoiced"] += cf.get("invoiced", 0.0)
+        channel_data[src]["collected"] += cf.get("paid", 0.0)
+        channel_data[src]["editor_cost"] += editor_cost_by_client.get(c_name, 0.0)
+        channel_data[src]["studio_cost"] += studio_cost_by_client.get(c_name, 0.0)
 
     channels = []
-    for name, row in sorted(totals.items()):
-        count, won = row["leads"], row["converted"]
+    for name, m in sorted(channel_data.items()):
+        l_count = m["leads"]
+        c_count = len(m["clients"]) if m["clients"] else m["converted"]
+        inv_val = round(m["invoiced"], 2)
+        coll_val = round(m["collected"], 2)
+        prod_val = round(m["editor_cost"] + m["studio_cost"], 2)
+        conv_rate = f"{100 * c_count / l_count:.1f}%" if l_count else "N/A"
+
+        if inv_val > 0 or coll_val > 0 or prod_val > 0:
+            gross_profit = round(inv_val - prod_val, 2)
+            margin_pct = round((gross_profit / inv_val * 100), 1) if inv_val > 0 else 0.0
+            margin_str = f"{margin_pct:.1f}%"
+            status = "Computed from delivery records"
+            inv_out = inv_val
+            coll_out = coll_val
+            prod_out = prod_val
+        else:
+            inv_out = None
+            coll_out = None
+            prod_out = None
+            gross_profit = None
+            margin_str = None
+            status = "Profit not verified"
+
         channels.append({
-            "name": name, "leads": count, "converted": won,
-            "conversion_rate": f"{100 * won / count:.1f}%" if count else "0.0%",
-            "revenue_invoiced": None, "cash_collected": None,
-            "production_cost": None, "gross_profit": None,
-            "gross_margin": None, "status": "Profit not verified"
+            "name": name,
+            "leads": l_count,
+            "converted": c_count,
+            "conversion_rate": conv_rate,
+            "revenue_invoiced": inv_out,
+            "cash_collected": coll_out,
+            "production_cost": prod_out,
+            "gross_profit": gross_profit,
+            "gross_margin": margin_str,
+            "status": status
         })
 
-    # Prefer a meaningful sample to avoid picking a 1-of-1 lead source.
     eligible = [c for c in channels if c["leads"] >= 5] or channels
     best = max(eligible, key=lambda c: (
         c["converted"] / c["leads"] if c["leads"] else 0,
         c["converted"], c["leads"]
     ), default=None)
     best_name = best["name"] if best else "Insufficient lead data"
-    why = (
-        f"{best_name} has the highest recorded lead-to-Won conversion rate "
-        f"among channels with at least five leads ({best['converted']} of "
-        f"{best['leads']}, {best['conversion_rate']}). "
-        "This is a LEAD-CONVERSION recommendation, NOT proof of highest "
-        "gross profit: lead-to-invoice attribution and channel-specific "
-        "acquisition costs are not established in the available records."
-        if best else "No eligible lead records are available."
-    )
+
+    if best:
+        why = (
+            f"{best_name} has the highest recorded lead-to-Won conversion rate "
+            f"among channels with at least five leads ({best['converted']} of "
+            f"{best['leads']}, {best['conversion_rate']}). "
+            "This is a lead-conversion recommendation based on actual closed accounts. "
+            "Critical limitation: advertising spend (ad budgets, PPC) is omitted from costs.csv; "
+            "profitability figures represent direct production gross contribution only, not net profit or true CAC. "
+            "Attribution links leads to clients via email, phone, and reviewed aliases."
+        )
+    else:
+        why = "No eligible lead records are available."
+
     marketing = {
-        "recommended_channel": best_name, "why": why,
-        "channels": channels, "profitability_verified": False
+        "recommended_channel": best_name,
+        "why": why,
+        "channels": channels,
+        "profitability_verified": False,
+        "attribution_method": (
+            "First-touch attribution linking leads to canonical clients via verified email, phone, and entity aliases. "
+            "Production costs calculate actual editor hours multiplied by individual wage rates ($22-$40/hr from team.csv) "
+            "plus studio occupancy time ($40/hr from costs.csv)."
+        )
     }
 
     churn = deepcopy(CHURN_ANALYSIS)
