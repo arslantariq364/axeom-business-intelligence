@@ -14,18 +14,119 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAppState();
 });
 
-// Load main application state from backend
+let appStateLoading = false;
+let appStateRequestId = 0;
+
+// Load main application state from backend with timeout and error resilience
 async function loadAppState() {
+  const reqId = ++appStateRequestId;
+  appStateLoading = true;
+
+  const errorBanner = document.getElementById('state-error-banner');
+  const errorMsg = document.getElementById('state-error-message');
+  if (errorBanner) errorBanner.style.display = 'none';
+
+  // Set timeout controller (15s)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    const res = await fetch('/api/state');
-    const data = await res.json();
-    if (data.status === 'success') {
-      appState = data;
-      updateDashboardLabels();
-      renderAllViews();
+    const res = await fetch('/api/state', {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+    if (reqId !== appStateRequestId) return; // Stale response prevention
+
+    if (!data || data.status !== 'success' || !data.metrics) {
+      throw new Error(data?.message || 'Invalid business data received');
+    }
+
+    appState = data;
+    appStateLoading = false;
+    if (errorBanner) errorBanner.style.display = 'none';
+
+    updateDashboardLabels();
+    renderAllViews();
   } catch (err) {
+    clearTimeout(timeoutId);
+    if (reqId !== appStateRequestId) return;
+    appStateLoading = false;
     console.error('Failed to load application state:', err);
+
+    // Display clear, non-confusing error banner without fabricating zeros
+    if (errorBanner) {
+      if (errorMsg) {
+        errorMsg.innerText = 'Unable to load business data. Please retry. Your records have not been changed.';
+      }
+      errorBanner.style.display = 'block';
+    }
+
+    // Set nav badges to error indicator so we never show misleading $0 or 0
+    if (!appState) {
+      const moneyBadge = document.getElementById('nav-money-badge');
+      if (moneyBadge) moneyBadge.innerText = 'Error';
+      const clientBadge = document.getElementById('nav-client-badge');
+      if (clientBadge) clientBadge.innerText = '—';
+      const requestsBadge = document.getElementById('nav-requests-badge');
+      if (requestsBadge) requestsBadge.innerText = '—';
+      const clientDirSummary = document.getElementById('client-directory-summary');
+      if (clientDirSummary) clientDirSummary.innerText = 'Unable to connect to database.';
+
+      renderStateErrorFallback();
+    }
+  }
+}
+
+function renderStateErrorFallback() {
+  const heroCard = document.getElementById('hero-card-container');
+  if (heroCard) {
+    heroCard.innerHTML = `
+      <div class="hero-lime-card" style="border-color: #FCA5A5; background: #FEF2F2;">
+        <div class="hero-header-row">
+          <div class="hero-pill-tag" style="background: #FEE2E2; color: #991B1B;">
+            <span class="pulse-dot danger"></span>
+            DATABASE RETRIEVAL ERROR
+          </div>
+          <span class="badge badge-danger">FAILED</span>
+        </div>
+        <h3 class="hero-action-headline" style="color: #991B1B;">Unable to load business data</h3>
+        <p style="color: #7F1D1D; margin-top: 6px; font-size: 0.92rem;">
+          Please retry. Your records have not been changed.
+        </p>
+        <div class="hero-controls-row" style="margin-top: 14px;">
+          <button class="btn btn-primary" onclick="loadAppState()" style="background: #DC2626; border-color: #DC2626;">
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    `;
+  }
+  const secContainer = document.getElementById('secondary-actions-container');
+  if (secContainer) {
+    secContainer.innerHTML = '<div class="table-card" style="padding:16px; color:var(--danger)">Unavailable while offline.</div>';
+  }
+  const pulseGrid = document.getElementById('pulse-grid-container');
+  if (pulseGrid) {
+    pulseGrid.innerHTML = '<div class="table-card" style="padding:16px; color:var(--danger)">Business metrics unavailable. Click Retry above.</div>';
+  }
+  const clientsGrid = document.getElementById('clients-grid-container');
+  if (clientsGrid) {
+    clientsGrid.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--danger)">Unable to load client directory. Please retry.</div>';
+  }
+  const moneyContainer = document.getElementById('money-content-container');
+  if (moneyContainer) {
+    moneyContainer.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--danger)">Unable to load financial ledgers. Please retry.</div>';
+  }
+  const reqContainer = document.getElementById('requests-content-container');
+  if (reqContainer) {
+    reqContainer.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--danger)">Unable to load requests & leads. Please retry.</div>';
   }
 }
 
@@ -151,17 +252,42 @@ function renderAllViews() {
 // -------------------------------------------------------------------------
 function renderTodayView() {
   const today = appState.today;
-  const metrics = appState.metrics;
+  const metrics = appState.metrics || {};
   const decisions = appState.decisions || {};
 
-  if (appState.workspace_cleared) {
+  if (appState.workspace_cleared || !today || !today.hero_action || !today.hero_action.client) {
     const hero = document.getElementById('hero-card-container');
     const secondary = document.getElementById('secondary-actions-container');
     const pulse = document.getElementById('pulse-grid-container');
-    if (hero) hero.innerHTML = '<div class="hero-lime-card"><h3 class="hero-action-headline">Fresh workspace</h3><p>Upload CSV files to start tracking new clients, payments, bookings and requests.</p><button class="btn btn-primary" onclick="switchView(\'upload\')">Add New Files</button></div>';
-    if (secondary) secondary.innerHTML = '';
+    if (hero) {
+      hero.innerHTML = `
+        <div class="hero-lime-card">
+          <div class="hero-header-row">
+            <div class="hero-pill-tag">
+              <span class="pulse-dot"></span>
+              WORKSPACE READY
+            </div>
+            <span class="badge badge-success">CLEAN STATE</span>
+          </div>
+          <h3 class="hero-action-headline">Your workspace is ready.</h3>
+          <p style="margin-top: 8px; color: var(--text-muted); font-size: 0.92rem;">Upload your first business file to start generating insights.</p>
+          <div class="hero-controls-row" style="margin-top: 16px;">
+            <button class="btn btn-primary" onclick="switchView('upload')">
+              Add New Files
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    if (secondary) secondary.innerHTML = '<div class="table-card" style="padding:16px; color:var(--text-muted); font-size:0.88rem;">No pending owner recommendations.</div>';
     if (pulse) {
-      const cards = [['CLIENTS', metrics.client_count], ['OVERDUE', '$' + metrics.overdue_total], ['UNBILLED', '$' + metrics.never_billed_total], ['CREDITS', '$' + metrics.we_owe_total], ['OPEN REQUESTS', metrics.lost_requests_count + metrics.unreplied_leads_count]];
+      const cards = [
+        ['CLIENTS', metrics.client_count || 0],
+        ['OVERDUE', '$' + (metrics.overdue_total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})],
+        ['UNBILLED', '$' + (metrics.never_billed_total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})],
+        ['CREDITS', '$' + (metrics.we_owe_total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})],
+        ['OPEN REQUESTS', (metrics.lost_requests_count || 0) + (metrics.unreplied_leads_count || 0)]
+      ];
       pulse.innerHTML = cards.map(function(card) { return '<div class="pulse-card"><div class="pulse-card-label">' + card[0] + '</div><div class="pulse-card-value">' + card[1] + '</div></div>'; }).join('');
     }
     return;
@@ -185,6 +311,11 @@ function renderTodayView() {
       statusClass = 'badge-neutral';
     }
 
+    const heroClientName = today.hero_action.client;
+    const heroHeadline = heroClientName === 'Patel Insurance Group'
+      ? 'Call Nina & Raj Patel (Patel Insurance Group)'
+      : `Action Required: ${escapeHtml(heroClientName)}`;
+
     heroCard.innerHTML = `
       <div class="hero-lime-card">
         <div class="hero-header-row">
@@ -195,22 +326,22 @@ function renderTodayView() {
           <span class="badge ${statusClass}">${statusLabel}</span>
         </div>
 
-        <h3 class="hero-action-headline">Call Nina & Raj Patel (${escapeHtml(today.hero_action.client)})</h3>
+        <h3 class="hero-action-headline">${heroHeadline}</h3>
 
         <div class="hero-impact-pill">
-          💰 Retainer at Risk: ${escapeHtml(today.hero_action.retainer_value)}${today.hero_action.overdue_invoice ? ` • Overdue: ${escapeHtml(today.hero_action.overdue_invoice)}` : ""}
+          💰 Retainer at Risk: ${escapeHtml(today.hero_action.retainer_value || '$0')}${today.hero_action.overdue_invoice ? ` • Overdue: ${escapeHtml(today.hero_action.overdue_invoice)}` : ""}
         </div>
 
         <ul class="hero-bullet-list">
-          <li class="hero-bullet-item">
-            <span class="hero-bullet-dot">1.</span>
-            <span>Unanswered contract review inquiry (Lead L097) & follow-up email Oct 2.</span>
-          </li>
-          <li class="hero-bullet-item">
-            <span class="hero-bullet-dot">2.</span>
-            <span>Client angry over missing regulatory branding on <em>'teen driver tips'</em> (V088, V121).</span>
-          </li>
-          ${today.hero_action.overdue_invoice ? `<li class="hero-bullet-item"><span class="hero-bullet-dot">3.</span><span>Review current balance: ${escapeHtml(today.hero_action.overdue_invoice)}.</span></li>` : `<li class="hero-bullet-item"><span class="hero-bullet-dot">3.</span><span>Invoice INV-1122 is no longer in the overdue queue. Focus on the client relationship.</span></li>`}
+          ${(today.hero_action.evidence && today.hero_action.evidence.length > 0) ?
+            today.hero_action.evidence.map((ev, idx) => `
+              <li class="hero-bullet-item">
+                <span class="hero-bullet-dot">${idx + 1}.</span>
+                <span>${escapeHtml(ev)}</span>
+              </li>
+            `).join('') :
+            `<li class="hero-bullet-item"><span class="hero-bullet-dot">1.</span><span>Client relationship requires owner follow-up.</span></li>`
+          }
         </ul>
 
         <div class="hero-controls-row">
@@ -218,7 +349,7 @@ function renderTodayView() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             Prepare reminder
           </button>
-          <button class="btn btn-outline-dark" onclick="viewClientDetail('C12')">
+          <button class="btn btn-outline-dark" onclick="viewClientDetail('${today.hero_action.client_id || 'C12'}')">
             View evidence
           </button>
           <button class="btn btn-secondary btn-sm" onclick="quickDeferAction('action_patel_call')">
@@ -227,67 +358,75 @@ function renderTodayView() {
         </div>
       </div>
     `;
-    registerAction('action_patel_call', 'Prepare Call Script for Patel Insurance Group', today.hero_action.draft_script, 'Nina & Raj Patel (214-555-0195)');
+    registerAction('action_patel_call', 'Prepare Call Script for ' + (today.hero_action.client || 'Client'), today.hero_action.draft_script || '', 'Client Contact');
   }
 
   // C. Next Two Actions: Compact Off-White Cards
   const secContainer = document.getElementById('secondary-actions-container');
   if (secContainer) {
-    const act2 = today.monday_top_3[1];
-    const act3 = today.monday_top_3[2];
+    const act2 = (today.monday_top_3 && today.monday_top_3.length > 1) ? today.monday_top_3[1] : null;
+    const act3 = (today.monday_top_3 && today.monday_top_3.length > 2) ? today.monday_top_3[2] : null;
     const dec2 = decisions['action_bill_unbilled'] || { status: 'pending' };
     const dec3 = decisions['action_collect_overdue'] || { status: 'pending' };
 
-    registerAction('action_bill_unbilled', 'Bill Unbilled Shoots & Apply Credits', act2.draft_notes, act2.contact);
-    registerAction('action_collect_overdue', 'Collect Aged Receivables & Fix Billing Tool', act3.draft_notes, act3.contact);
+    if (!act2 && !act3) {
+      secContainer.innerHTML = '<div class="table-card" style="padding:16px; color:var(--text-muted); font-size:0.88rem;">No secondary actions pending.</div>';
+    } else {
+      if (act2) registerAction('action_bill_unbilled', act2.title || 'Bill Unbilled Shoots', act2.draft_notes || '', act2.contact || '');
+      if (act3) registerAction('action_collect_overdue', act3.title || 'Collect Aged Receivables', act3.draft_notes || '', act3.contact || '');
 
-    secContainer.innerHTML = `
-      <div class="action-card">
-        <div>
-          <div class="action-card-header">
-            <span class="action-tag warning">ACTION #2 • UNBILLED WORK & CREDITS</span>
-            <span class="badge ${dec2.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${dec2.status.toUpperCase()}</span>
+      secContainer.innerHTML = `
+        ${act2 ? `
+        <div class="action-card">
+          <div>
+            <div class="action-card-header">
+              <span class="action-tag warning">ACTION #2 • UNBILLED WORK & CREDITS</span>
+              <span class="badge ${dec2.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${dec2.status.toUpperCase()}</span>
+            </div>
+            <h4 class="action-card-title">${escapeHtml(act2.title || '')}</h4>
+            <div class="action-card-impact">💰 ${escapeHtml(act2.financial_impact || '')}</div>
+            <p class="action-card-desc">${escapeHtml(act2.summary || '')}</p>
           </div>
-          <h4 class="action-card-title">${act2.title}</h4>
-          <div class="action-card-impact">💰 ${act2.financial_impact}</div>
-          <p class="action-card-desc">${act2.summary}</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openActionModal('action_bill_unbilled')">
+              Review invoices & credits
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
+              View evidence
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="quickDeferAction('action_bill_unbilled')">
+              Defer
+            </button>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_bill_unbilled')">
-            Review invoices & credits
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
-            View evidence
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="quickDeferAction('action_bill_unbilled')">
-            Defer
-          </button>
-        </div>
-      </div>
+        ` : ''}
 
-      <div class="action-card">
-        <div>
-          <div class="action-card-header">
-            <span class="action-tag info">ACTION #3 • OVERDUE COLLECTIONS & TOOL FIXES</span>
-            <span class="badge ${dec3.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${dec3.status.toUpperCase()}</span>
+        ${act3 ? `
+        <div class="action-card">
+          <div>
+            <div class="action-card-header">
+              <span class="action-tag info">ACTION #3 • OVERDUE COLLECTIONS & TOOL FIXES</span>
+              <span class="badge ${dec3.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${dec3.status.toUpperCase()}</span>
+            </div>
+            <h4 class="action-card-title">${escapeHtml(act3.title || '')}</h4>
+            <div class="action-card-impact">💰 ${escapeHtml(act3.financial_impact || '')}</div>
+            <p class="action-card-desc">${escapeHtml(act3.summary || '')}</p>
           </div>
-          <h4 class="action-card-title">${act3.title}</h4>
-          <div class="action-card-impact">💰 ${act3.financial_impact}</div>
-          <p class="action-card-desc">${act3.summary}</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openActionModal('action_collect_overdue')">
+              Review collection queue
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
+              View evidence
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="quickDeferAction('action_collect_overdue')">
+              Defer
+            </button>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn btn-primary btn-sm" onclick="openActionModal('action_collect_overdue')">
-            Review collection queue
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="switchView('money')">
-            View evidence
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="quickDeferAction('action_collect_overdue')">
-            Defer
-          </button>
-        </div>
-      </div>
-    `;
+        ` : ''}
+      `;
+    }
   }
 
   // D. Business Summary Cards (Accurate distinction of money owed vs overdue)
@@ -566,15 +705,21 @@ function renderMoneyView() {
       </div>
     `;
   } else if (currentMoneySubTab === 'uncertain') {
+    const uncertainItems = (money.uncertain && Array.isArray(money.uncertain)) ? money.uncertain : [];
     container.innerHTML = `
       <div class="table-card">
         <div class="table-header-box">
           <div class="table-header-title">Uncertain Allocations & Payer Policy Audits</div>
-          <span class="badge badge-warning">${(money.uncertain || []).length} Documented Evidence Dispositions</span>
+          <span class="badge badge-warning">${uncertainItems.length} Documented Evidence Dispositions</span>
         </div>
         <p style="padding: 0 16px 12px 16px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
           Where transaction references were missing, partial, or split across entities, Axeom applied strict conservative rules grounded in email and message evidence.
         </p>
+        ${uncertainItems.length === 0 ? `
+          <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+            No uncertain transactions or payer policies require review.
+          </div>
+        ` : `
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -587,74 +732,23 @@ function renderMoneyView() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td><strong>Tasha Green (Hustle & Heart FM)</strong></td>
-                <td><span class="badge badge-info">Unreferenced Payment Allocation</span></td>
-                <td>$900.00 (P5110) split across 3 invoices</td>
-                <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">
-                  Payment P5110 contained no invoice reference. Tasha emailed on 2026-08-10 requesting to bundle August sessions together. Allocated $300 each to INV-1093, INV-1103, and INV-1106. Invoices marked as paid in truth despite tool error.
-                </td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_tasha', 'Review Tasha Green Payment Allocation', 'Verify allocation of payment P5110 ($900.00) across INV-1093, INV-1103, INV-1106.', 'Tasha Green (214-555-0182)')">
-                    Mark reviewed
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Tony Russo (Prime Roofing)</strong></td>
-                <td><span class="badge badge-warning">Partial Payment Settlement</span></td>
-                <td>$450.00 Remaining Overdue on INV-1125</td>
-                <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">
-                  Tony sent $450 via P5118 with memo <em>'Sent half. Rest when next batch is done.'</em> Net $450 remains due (19 days late). Invoiced $900 is NOT completely paid.
-                </td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_tony', 'Review Prime Roofing Partial Payment', 'Follow up with Tony Russo regarding remaining $450 balance on INV-1125 once next video batch renders.', 'Tony Russo (817-555-0144)')">
-                    Prepare reminder
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Brightline Marketing LLC</strong></td>
-                <td><span class="badge badge-lime">Third-Party Agency Payer</span></td>
-                <td>Pays for 2 Clients (Greenway & Summit)</td>
-                <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">
-                  Per Kelsey Moore email (2026-06-08), Brightline pays monthly on behalf of Greenway Pediatrics and Summit Chiropractic. Brightline is classified strictly under <code>payers_who_are_not_clients</code>, preserving client count at 29.
-                </td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_brightline', 'Review Agency Billing for Brightline', 'Check current billing cycle for Greenway Pediatrics and Summit Chiropractic billed to Brightline Marketing.', 'Kelsey Moore (kelsey@brightlinemktg.com)')">
-                    Mark reviewed
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Glow Aesthetics (Nadia Hassan)</strong></td>
-                <td><span class="badge badge-info">Duplicate Payment Liability</span></td>
-                <td>$900.00 Customer Credit (P5093)</td>
-                <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">
-                  Invoice INV-1086 was paid twice via P5091 and P5093 ($900 each). Logged as studio liability under <code>we_owe</code> awaiting owner confirmation on cash refund vs upcoming retainer credit.
-                </td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_glow', 'Confirm Credit Option for Glow Aesthetics', 'Confirm whether Nadia Hassan prefers $900 credit applied to next retainer or electronic refund.', 'Nadia Hassan (214-555-0177)')">
-                    Confirm credit
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Lone Star Realty (Dana Brooks)</strong></td>
-                <td><span class="badge badge-info">Cancelled Shoot Credit Note</span></td>
-                <td>$1,500.00 Credit Due (B148 / INV-1135)</td>
-                <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">
-                  Shoot B148 paid on INV-1135 was cancelled due to family emergency. Axeom subsequently billed and collected full $1,500 on INV-1143 without applying credit. $1,500 credit owed to client.
-                </td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_lonestar', 'Apply $1,500 Credit for Lone Star Realty', 'Apply $1,500 credit note from cancelled shoot B148 to Lone Star Realty upcoming shoots.', 'Dana Brooks (214-555-0164)')">
-                    Apply credit
-                  </button>
-                </td>
-              </tr>
+              ${uncertainItems.map(item => `
+                <tr>
+                  <td><strong>${escapeHtml(item.entity || '')}</strong></td>
+                  <td><span class="badge ${item.badge_class || 'badge-info'}">${escapeHtml(item.classification || '')}</span></td>
+                  <td>${escapeHtml(item.impact || '')}</td>
+                  <td style="max-width: 450px; font-size: 0.82rem; line-height: 1.45;">${escapeHtml(item.evidence || '')}</td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openActionModal('alloc_${escapeHtml(item.id || '')}', 'Review ${escapeHtml(item.entity || '')}', '${escapeHtml(item.notes || '')}', '${escapeHtml(item.contact || '')}')">
+                      ${escapeHtml(item.action_label || 'Mark reviewed')}
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
         </div>
+        `}
       </div>
     `;
   }
@@ -681,6 +775,10 @@ function renderRequestsView() {
   if (appState.workspace_cleared && !req.lost_requests.length && !req.unreplied_leads.length && appState.metrics.total_leads_count === 0) { container.innerHTML = '<div class="table-card" style="padding:24px">No client requests or leads yet.</div>'; return; }
 
   if (currentReqSubTab === 'lost') {
+    if (!req.lost_requests || !req.lost_requests.length) {
+      container.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--text-muted);">No verified lost edit requests in this workspace.</div>';
+      return;
+    }
     container.innerHTML = `
       <div class="table-card">
         <div class="table-header-box">
@@ -728,6 +826,10 @@ function renderRequestsView() {
       </div>
     `;
   } else if (currentReqSubTab === 'causes') {
+    if (!req.root_causes || !req.root_causes.length) {
+      container.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--text-muted);">No root cause factors recorded for this workspace.</div>';
+      return;
+    }
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 14px;">
         ${req.root_causes.map((rc, idx) => `
@@ -743,7 +845,7 @@ function renderRequestsView() {
         <div class="action-card" style="border-color: var(--danger-border); background: var(--danger-bg);">
           <div class="action-card-header">
             <span class="action-tag danger">TIMELINE OF DETERIORATION</span>
-            <span class="badge badge-danger">START MONTH: August 2026 (2026-08)</span>
+            <span class="badge badge-danger">START MONTH: ${escapeHtml(req.deterioration.month || 'August 2026')}</span>
           </div>
           <h4 class="action-card-title">When & Why Edit Complaints Surged</h4>
           <p class="action-card-desc">
@@ -753,6 +855,10 @@ function renderRequestsView() {
       </div>
     `;
   } else if (currentReqSubTab === 'leads') {
+    if (!req.unreplied_leads || !req.unreplied_leads.length) {
+      container.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--text-muted);">No unanswered inbound leads in this workspace.</div>';
+      return;
+    }
     container.innerHTML = `
       <div class="table-card">
         <div class="table-header-box">
@@ -1073,13 +1179,23 @@ async function renderClientHistory(clientId) {
   if (!dossierContainer) return;
 
   const selector = document.getElementById('history-client-select');
-  if (!appState.clients.length) { if (selector) selector.innerHTML = '<option value="">No clients</option>'; dossierContainer.innerHTML = '<div class="table-card" style="padding:24px">No client history yet.</div>'; return; }
-  if (selector && selector.children.length <= 1) {
+  if (!appState || !appState.clients || !appState.clients.length) {
+    if (selector) selector.innerHTML = '<option value="">No clients</option>';
+    dossierContainer.innerHTML = '<div class="table-card" style="padding:24px; text-align:center; color:var(--text-muted);">No client history in this workspace yet.</div>';
+    return;
+  }
+
+  if (!clientId || !appState.clients.some(c => c.id === clientId)) {
+    clientId = appState.clients[0].id;
+    selectedClientId = clientId;
+  }
+
+  if (selector) {
     selector.innerHTML = appState.clients.map(c => `
       <option value="${c.id}" ${c.id === clientId ? 'selected' : ''}>${escapeHtml(c.canonical_name)}</option>
     `).join('');
+    selector.value = clientId;
   }
-  if (selector) selector.value = clientId;
 
   dossierContainer.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted)">Loading client dossier...</div>`;
 
@@ -1193,7 +1309,10 @@ function initUpload() {
   const fileInput = document.getElementById('file-input');
   if (!dropzone || !fileInput) return;
 
-  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('click', (e) => {
+    if (e.target.closest('.batch-retry-btn')) return;
+    fileInput.click();
+  });
 
   dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -1207,31 +1326,85 @@ function initUpload() {
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      handleFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesUpload(Array.from(e.dataTransfer.files));
     }
   });
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-      handleFileUpload(fileInput.files[0]);
+    if (fileInput.files && fileInput.files.length > 0) {
+      handleFilesUpload(Array.from(fileInput.files));
+      fileInput.value = ''; // Reset for re-selection
     }
   });
 }
 
-async function handleFileUpload(file) {
-  const statusBox = document.getElementById('upload-status-box');
-  if (!statusBox) return;
+function sniffFileRoleClient(name) {
+  const lower = name.toLowerCase();
+  if (lower.includes('invoice')) return 'invoices';
+  if (lower.includes('payment') || lower.includes('pay')) return 'payments';
+  if (lower.includes('booking')) return 'bookings';
+  if (lower.includes('production') || lower.includes('board')) return 'production_board';
+  if (lower.includes('lead')) return 'leads';
+  if (lower.includes('message') || lower.endsWith('.txt')) return 'messages';
+  if (lower.includes('cost')) return 'costs';
+  if (lower.includes('team')) return 'team';
+  return 'csv/data';
+}
 
-  statusBox.style.display = 'block';
-  statusBox.innerHTML = `
-    <div style="padding: 16px; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-md); text-align: center;">
-      <p>Analyzing and staging <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB)...</p>
-    </div>
-  `;
+let lastFailedBatchFiles = [];
+
+async function handleFilesUpload(files) {
+  const queueBox = document.getElementById('upload-queue-box');
+  const statusBox = document.getElementById('upload-status-box');
+  if (!queueBox && !statusBox) return;
+
+  const totalFiles = files.length;
+  if (totalFiles === 0) return;
+
+  if (queueBox) {
+    queueBox.style.display = 'block';
+    queueBox.innerHTML = `
+      <div class="upload-queue-card">
+        <div class="upload-queue-header">
+          <h4 style="font-size: 1rem; font-weight: 800; margin: 0; color: var(--text-main);">
+            Batch Upload Queue (${totalFiles} ${totalFiles === 1 ? 'file' : 'files'})
+          </h4>
+          <span class="badge badge-info">Staging & Validating...</span>
+        </div>
+        ${files.map((file, idx) => `
+          <div class="queue-item" id="queue-item-${idx}">
+            <div class="queue-item-header">
+              <span class="queue-filename">
+                📄 ${escapeHtml(file.name)}
+                <span class="badge" style="background:var(--surface); border:1px solid var(--card-border); font-size:0.7rem;">
+                  ${sniffFileRoleClient(file.name)}
+                </span>
+              </span>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">
+                ${(file.size / 1024).toFixed(1)} KB • <span id="queue-status-${idx}" style="color:var(--info);">Processing...</span>
+              </span>
+            </div>
+            <div class="queue-progress-track">
+              <div class="queue-progress-fill" id="queue-fill-${idx}" style="width: 50%;"></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  if (statusBox) {
+    statusBox.style.display = 'none';
+    statusBox.innerHTML = '';
+  }
 
   const formData = new FormData();
-  formData.append('file', file);
+  if (totalFiles === 1) {
+    formData.append('file', files[0]);
+  } else {
+    files.forEach(f => formData.append('files', f));
+  }
 
   try {
     const res = await fetch('/api/upload', {
@@ -1240,80 +1413,225 @@ async function handleFileUpload(file) {
     });
     const result = await res.json();
 
-    if (result.status === 'success') {
-      const added = result.added || 0;
-      const updated = result.updated || 0;
-      const skipped = result.skipped || 0;
-      const rejected = result.rejected || 0;
-      const role = result.file_role || 'unknown';
-      const hashStr = result.sha256 ? result.sha256.substring(0, 16) + '...' : '';
+    // Mark queue items complete
+    files.forEach((_, idx) => {
+      const fill = document.getElementById(`queue-fill-${idx}`);
+      if (fill) fill.style.width = '100%';
+    });
 
-      let badgeTag = '<span class="badge badge-success">SUCCESS</span>';
-      if (rejected > 0) {
-        badgeTag = '<span class="badge badge-warning">PARTIAL SUCCESS</span>';
-      }
-
-      let errorList = '';
-      if (result.errors && result.errors.length > 0) {
-        errorList = `<div style="margin-top: 8px; font-size: 0.78rem; color: var(--danger);">Rejections / Warnings: ${result.errors.map(e => escapeHtml(e)).join('; ')}</div>`;
-      }
-
-      statusBox.innerHTML = `
-        <div style="padding: 16px; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--success); font-weight: 800; margin: 0;">✅ File Ingestion Completed</h4>
-            ${badgeTag}
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; font-size: 0.8rem; background: var(--surface); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
-            <div><strong>Role:</strong> ${escapeHtml(role)}</div>
-            <div><strong style="color:var(--success);">Added:</strong> ${added}</div>
-            <div><strong style="color:var(--info);">Updated:</strong> ${updated}</div>
-            <div><strong style="color:var(--text-muted);">Skipped:</strong> ${skipped}</div>
-            <div><strong style="color:var(--danger);">Rejected:</strong> ${rejected}</div>
-          </div>
-          ${errorList}
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-            SHA-256 Hash: <code>${hashStr}</code> • Revision: <code>${escapeHtml(result.revision_id || 'N/A')}</code>
-          </div>
-        </div>
-      `;
-      // Reload app state immediately
-      await loadAppState();
-    } else if (result.status === 'duplicate_file') {
-      statusBox.innerHTML = `
-        <div style="padding: 16px; background: var(--surface); border: 1px solid var(--info-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--info); font-weight: 800; margin: 0;">ℹ️ Duplicate File Skipped (Idempotent)</h4>
-            <span class="badge badge-info">DUPLICATE</span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
-          <div style="font-size: 0.78rem; color: var(--text-muted);">
-            Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
-          </div>
-        </div>
-      `;
+    if (totalFiles > 1 || result.summary) {
+      renderBatchUploadResult(result, files);
     } else {
-      let errorDetails = '';
-      if (result.errors && result.errors.length > 0) {
-        errorDetails = `<ul style="margin: 6px 0 0 16px; font-size: 0.8rem; color: var(--danger);">${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
-      }
+      renderSingleUploadResult(result, files[0]);
+    }
+
+    // Refresh dashboard state after ingestion finishes
+    await loadAppState();
+  } catch (err) {
+    if (statusBox) {
+      statusBox.style.display = 'block';
       statusBox.innerHTML = `
         <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <h4 style="color:var(--danger); font-weight: 800; margin: 0;">❌ Validation / Ingestion Error</h4>
-            <span class="badge badge-danger">REJECTED</span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
-          ${errorDetails}
+          <h4 style="color:var(--danger); font-weight: 800; margin: 0 0 4px 0;">Network / Upload Error</h4>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin: 0;">${escapeHtml(err.message)}</p>
         </div>
       `;
     }
-  } catch (err) {
+  }
+}
+
+function renderBatchUploadResult(result, originalFiles) {
+  const statusBox = document.getElementById('upload-status-box');
+  const queueBox = document.getElementById('upload-queue-box');
+  if (queueBox) queueBox.style.display = 'none';
+  if (!statusBox) return;
+
+  statusBox.style.display = 'block';
+
+  const summaryText = result.summary || `${result.total_files || 0} files processed.`;
+  const isAllSuccess = result.status === 'success';
+  const isPartial = result.status === 'partial_success';
+  const cardClass = isAllSuccess ? 'success' : (isPartial ? 'partial' : 'error');
+
+  const files = result.files || [];
+  lastFailedBatchFiles = files.filter(f => f.status === 'error').map(f => f.filename);
+
+  statusBox.innerHTML = `
+    <div class="batch-summary-card ${cardClass}">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <h4 style="font-size: 1.1rem; font-weight: 800; margin: 0; color: var(--text-main);">
+          ${isAllSuccess ? '✅' : (isPartial ? '⚠️' : '❌')} Batch Upload Finished
+        </h4>
+        <span class="badge ${isAllSuccess ? 'badge-success' : (isPartial ? 'badge-warning' : 'badge-danger')}">
+          ${escapeHtml(result.status.toUpperCase())}
+        </span>
+      </div>
+      <p style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 8px 0 0 0;">
+        ${escapeHtml(summaryText)}
+      </p>
+
+      <div class="batch-summary-counts">
+        <div class="batch-count-box">
+          <div class="batch-count-val">${result.total_files || 0}</div>
+          <div class="batch-count-lbl">Total Files</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--success);">${result.imported_count || 0}</div>
+          <div class="batch-count-lbl">Imported</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--info);">${result.duplicate_count || 0}</div>
+          <div class="batch-count-lbl">Duplicates</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--danger);">${result.rejected_count || 0}</div>
+          <div class="batch-count-lbl">Rejected</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--success);">${result.added || 0}</div>
+          <div class="batch-count-lbl">Rows Added</div>
+        </div>
+        <div class="batch-count-box">
+          <div class="batch-count-val" style="color:var(--info);">${result.updated || 0}</div>
+          <div class="batch-count-lbl">Rows Updated</div>
+        </div>
+      </div>
+
+      <div class="batch-table-container">
+        <table class="batch-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Detected Role</th>
+              <th>Status</th>
+              <th>Added</th>
+              <th>Updated</th>
+              <th>Skipped</th>
+              <th>Rejected</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${files.map(f => {
+              let badgeCls = 'badge-success';
+              let badgeLbl = 'Imported';
+              if (f.status === 'duplicate_file') {
+                badgeCls = 'badge-info';
+                badgeLbl = 'Duplicate';
+              } else if (f.status === 'error') {
+                badgeCls = 'badge-danger';
+                badgeLbl = 'Rejected';
+              }
+              const errs = (f.errors && f.errors.length) ? f.errors.map(e => escapeHtml(e)).join('; ') : escapeHtml(f.message || '-');
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(f.filename)}</strong></td>
+                  <td><span class="badge" style="background:var(--surface-hover);">${escapeHtml(f.file_role || 'unknown')}</span></td>
+                  <td><span class="badge ${badgeCls}">${badgeLbl}</span></td>
+                  <td style="color:var(--success);">${f.added || 0}</td>
+                  <td style="color:var(--info);">${f.updated || 0}</td>
+                  <td style="color:var(--text-muted);">${f.skipped || 0}</td>
+                  <td style="color:var(--danger);">${f.rejected || 0}</td>
+                  <td style="font-size:0.75rem; color:${f.status === 'error' ? 'var(--danger)' : 'var(--text-muted)'};">${errs}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${lastFailedBatchFiles.length > 0 ? `
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 0.82rem; color: var(--danger);">
+            ${lastFailedBatchFiles.length} file(s) failed validation. Inspect errors above or retry corrected versions.
+          </span>
+          <button class="batch-retry-btn" onclick="retryFailedUploads()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Select & Retry Failed Files
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function retryFailedUploads() {
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) fileInput.click();
+}
+
+function renderSingleUploadResult(result, file) {
+  const statusBox = document.getElementById('upload-status-box');
+  const queueBox = document.getElementById('upload-queue-box');
+  if (queueBox) queueBox.style.display = 'none';
+  if (!statusBox) return;
+
+  statusBox.style.display = 'block';
+
+  if (result.status === 'success') {
+    const added = result.added || 0;
+    const updated = result.updated || 0;
+    const skipped = result.skipped || 0;
+    const rejected = result.rejected || 0;
+    const role = result.file_role || 'unknown';
+    const hashStr = result.sha256 ? result.sha256.substring(0, 16) + '...' : '';
+
+    let badgeTag = '<span class="badge badge-success">SUCCESS</span>';
+    if (rejected > 0) {
+      badgeTag = '<span class="badge badge-warning">PARTIAL SUCCESS</span>';
+    }
+
+    let errorList = '';
+    if (result.errors && result.errors.length > 0) {
+      errorList = `<div style="margin-top: 8px; font-size: 0.78rem; color: var(--danger);">Rejections / Warnings: ${result.errors.map(e => escapeHtml(e)).join('; ')}</div>`;
+    }
+
+    statusBox.innerHTML = `
+      <div style="padding: 16px; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--success); font-weight: 800; margin: 0;">✅ File Ingestion Completed</h4>
+          ${badgeTag}
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; font-size: 0.8rem; background: var(--surface); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+          <div><strong>Role:</strong> ${escapeHtml(role)}</div>
+          <div><strong style="color:var(--success);">Added:</strong> ${added}</div>
+          <div><strong style="color:var(--info);">Updated:</strong> ${updated}</div>
+          <div><strong style="color:var(--text-muted);">Skipped:</strong> ${skipped}</div>
+          <div><strong style="color:var(--danger);">Rejected:</strong> ${rejected}</div>
+        </div>
+        ${errorList}
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+          SHA-256 Hash: <code>${hashStr}</code> • Revision: <code>${escapeHtml(result.revision_id || 'N/A')}</code>
+        </div>
+      </div>
+    `;
+  } else if (result.status === 'duplicate_file') {
+    statusBox.innerHTML = `
+      <div style="padding: 16px; background: var(--surface); border: 1px solid var(--info-border); border-radius: var(--radius-md);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--info); font-weight: 800; margin: 0;">ℹ️ Duplicate File Skipped (Idempotent)</h4>
+          <span class="badge badge-info">DUPLICATE</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 8px;">${escapeHtml(result.message)}</p>
+        <div style="font-size: 0.78rem; color: var(--text-muted);">
+          Skipped Rows: <strong>${result.skipped || 0}</strong> • SHA-256: <code>${result.sha256 ? result.sha256.substring(0, 16) + '...' : ''}</code>
+        </div>
+      </div>
+    `;
+  } else {
+    let errorDetails = '';
+    if (result.errors && result.errors.length > 0) {
+      errorDetails = `<ul style="margin: 6px 0 0 16px; font-size: 0.8rem; color: var(--danger);">${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+    }
     statusBox.innerHTML = `
       <div style="padding: 16px; background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-md);">
-        <h4 style="color:var(--danger); font-weight: 800; margin: 0 0 4px 0;">Network Error</h4>
-        <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(err.message)}</p>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h4 style="color:var(--danger); font-weight: 800; margin: 0;">❌ Validation / Ingestion Error</h4>
+          <span class="badge badge-danger">REJECTED</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-main);">${escapeHtml(result.message)}</p>
+        ${errorDetails}
       </div>
     `;
   }

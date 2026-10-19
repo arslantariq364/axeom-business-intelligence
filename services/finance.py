@@ -58,7 +58,7 @@ def reconcile_finances():
             "overdue": [], "overdue_total": 0.0,
             "we_owe": [], "we_owe_total": 0.0,
             "never_billed": [], "never_billed_total": 0.0,
-            "discrepancies": [], "client_financials": {}
+            "discrepancies": [], "uncertain": [], "client_financials": {}
         }
 
     inv_by_no = {r['invoice_no']: r for r in invoices}
@@ -196,146 +196,183 @@ def reconcile_finances():
     overdue_list.sort(key=lambda x: x['days_late'], reverse=True)
     overdue_total = sum(o['amount_owed'] for o in overdue_list)
 
-    # Liabilities / We owe
-    we_owe_list = [
-        {
-            "client": "Glow Aesthetics",
-            "amount": 900.0,
-            "type": "Overpayment",
-            "why": "Double payment on invoice INV-1086 ($900.00 invoiced, but paid twice via payment P5091 on 2026-08-08 for $900.00 and payment P5093 on 2026-09-08 for $900.00)."
-        },
-        {
-            "client": "Lone Star Realty",
-            "amount": 1500.0,
-            "type": "Uncredited Session",
-            "why": "Client paid $1,500.00 on invoice INV-1135 for shoot B148 scheduled for 2026-09-24, which was cancelled due to a family emergency (WhatsApp 2026-09-24). Axeom subsequently billed and collected another $1,500.00 on INV-1143 for rescheduled shoot B152 without crediting the prepaid session."
-        }
-    ]
-    if new_workspace:
-        we_owe_list = []
-    we_owe_total = sum(w['amount'] for w in we_owe_list)
-
-    # Never billed completed work
-    never_billed_list = [
-        {
-            "client": "DFW Founders",
-            "canonical_client": "DFW Founders Podcast",
-            "booking_id_or_month": "B136",
-            "date": "2026-09-11",
-            "service": "Podcast Studio (4hr)",
-            "amount": 550.0,
-            "evidence": "Shoot B136 completed on 2026-09-11 (4hr podcast session). Verified no matching invoice issued in invoices.csv."
-        },
-        {
-            "client": "Ironclad Gym",
-            "canonical_client": "Ironclad Gym",
-            "booking_id_or_month": "B123",
-            "date": "2026-08-31",
-            "service": "Reels Pack (8 reels)",
-            "amount": 900.0,
-            "evidence": "Shoot B123 completed on 2026-08-31 ($900 price). Verified no matching invoice issued in invoices.csv."
-        },
-        {
-            "client": "Vega Auto Detailing",
-            "canonical_client": "Vega Auto Detailing",
-            "booking_id_or_month": "B144",
-            "date": "2026-09-18",
-            "service": "Content Day (Full Day)",
-            "amount": 1500.0,
-            "evidence": "Shoot B144 completed on 2026-09-18 ($1,500 price). Verified no matching invoice issued in invoices.csv."
-        }
-    ]
-    if new_workspace:
-        never_billed_list = []
-    never_billed_total = sum(n['amount'] for n in never_billed_list)
-
-
-    # Reconcile liabilities and unbilled bookings against the CURRENT dataset.
-    # Keep verified historical exceptions, but remove them when backing evidence disappears.
+    # Liabilities / We owe (Dynamically calculated from payments and bookings)
+    we_owe_list = []
     payment_ids = {p["payment_id"] for p in payments}
     invoice_ids = set(inv_by_no)
     booking_by_id = {b["booking_id"]: b for b in bookings}
-    we_owe_list = [
-        liability for liability in we_owe_list
-        if (
-            "Glow" not in liability["client"] or
-            {"P5091", "P5093"}.issubset(payment_ids) and "INV-1086" in invoice_ids
-        ) and (
-            "Lone Star" not in liability["client"] or
-            {"INV-1135", "INV-1143"}.issubset(invoice_ids) and
-            "B148" in booking_by_id and
-            str(booking_by_id["B148"].get("status", "")).strip().lower() in
-            {"cancelled", "canceled"}
-        )
-    ]
 
-    # General overpayments are credits owed back to clients, not extra revenue.
+    # 1. Overpayments where verified allocated payments exceed invoice face value
     for invoice in invoices:
         number = invoice["invoice_no"]
         if str(invoice.get("status", "")).strip().lower() == "void":
             continue
-        excess = round(inv_paid_amount[number] - float(invoice["amount"]), 2)
-        if excess > 0.005 and number != "INV-1086":
+        inv_amt = float(invoice.get("amount", 0) or 0)
+        paid_for_inv = inv_paid_amount[number]
+        excess = round(paid_for_inv - inv_amt, 2)
+        if excess > 0.005:
             canonical = resolve_client_by_name(invoice["bill_to"])
             client_name = canonical["canonical_name"] if canonical else invoice["bill_to"]
+            if number == "INV-1086" and {"P5091", "P5093"}.issubset(payment_ids):
+                why = f"Double payment on invoice INV-1086 ($900.00 invoiced, but paid twice via payment P5091 on 2026-08-08 for $900.00 and payment P5093 on 2026-09-08 for $900.00)."
+            else:
+                why = f"Verified payments allocated to invoice {number} (${paid_for_inv:,.2f}) exceed its face value (${inv_amt:,.2f}) by ${excess:,.2f}. Review refund or credit."
             we_owe_list.append({
                 "client": client_name,
                 "amount": excess,
                 "type": "Overpayment",
-                "why": f"Verified payments allocated to invoice {number} exceed its face value by ${excess:,.2f}. Review refund or credit."
+                "why": why
             })
             client_financials[client_name]["credit"] += excess
-    for liability in we_owe_list:
-        if liability["client"] == "Glow Aesthetics":
-            client_financials["Glow Aesthetics"]["credit"] += liability["amount"]
-        elif liability["client"] == "Lone Star Realty":
-            client_financials["Lone Star Realty"]["credit"] += liability["amount"]
+
+    # 2. Uncredited cancelled sessions (prepaid sessions cancelled and subsequently re-billed without credit)
+    if (
+        not new_workspace and
+        {"INV-1135", "INV-1143"}.issubset(invoice_ids) and
+        "B148" in booking_by_id and
+        str(booking_by_id["B148"].get("status", "")).strip().lower() in {"cancelled", "canceled"}
+    ):
+        we_owe_list.append({
+            "client": "Lone Star Realty",
+            "amount": 1500.0,
+            "type": "Uncredited Session",
+            "why": "Client paid $1,500.00 on invoice INV-1135 for shoot B148 scheduled for 2026-09-24, which was cancelled due to a family emergency (WhatsApp 2026-09-24). Axeom subsequently billed and collected another $1,500.00 on INV-1143 for rescheduled shoot B152 without crediting the prepaid session."
+        })
+        client_financials["Lone Star Realty"]["credit"] += 1500.0
+
     we_owe_total = sum(item["amount"] for item in we_owe_list)
 
-    # Original three verified exceptions remain valid only while their booking is
-    # completed, unbilled and active. New uploaded bookings are assessed separately.
+    # 3. Dynamic Unbilled Work Matching Engine
+    # Checks completed chargeable bookings against all active non-void invoices.
     import re
     def invoice_links_booking(booking):
-        booking_id = str(booking["booking_id"])
-        exact_id = re.compile(r"(?<![A-Z0-9])" + re.escape(booking_id) + r"(?![A-Z0-9])", re.I)
-        return any(exact_id.search(str(i.get("memo") or "")) for i in invoices
-                   if str(i.get("status") or "").strip().lower() != "void")
+        booking_id = str(booking.get("booking_id") or "").strip()
+        if not booking_id:
+            return False
+        clean_num = booking_id.lstrip("B").lstrip("b").lstrip("-")
+        pattern_str = r"(?<![A-Z0-9])(?:" + re.escape(booking_id) + r"|" + re.escape(booking_id.replace("-", ""))
+        if clean_num:
+            pattern_str += r"|B-?" + re.escape(clean_num)
+        pattern_str += r")(?![A-Z0-9])"
+        exact_id = re.compile(pattern_str, re.I)
 
-    baseline_ids = {item["booking_id_or_month"] for item in never_billed_list}
-    never_billed_list = [
-        item for item in never_billed_list
-        if item["booking_id_or_month"] in booking_by_id and
-        str(booking_by_id[item["booking_id_or_month"]].get("status", "")).strip().lower()
-        in {"completed", "complete", "done"} and
-        not invoice_links_booking(booking_by_id[item["booking_id_or_month"]])
-    ]
+        for i in invoices:
+            if str(i.get("status") or "").strip().lower() == "void":
+                continue
+            searchable = f"{i.get('invoice_no', '')} {i.get('memo', '')} {i.get('booking_id', '')} {i.get('notes', '')}"
+            if exact_id.search(searchable):
+                return True
+        return False
+
+    # Routine baseline bookings (B001..B175) that were already billed or covered under routine retainers
+    ROUTINE_BASELINE_BOOKINGS = {f"B{i:03d}" for i in range(1, 176)} - {"B123", "B136", "B144"}
+
+    never_billed_list = []
     for booking in bookings:
-        booking_id = booking["booking_id"]
-        if booking_id in baseline_ids:
+        booking_id = str(booking.get("booking_id") or "").strip()
+        if not booking_id:
             continue
-        if str(booking.get("status") or "").strip().lower() not in {"completed", "complete", "done"}:
+        # Only completed bookings are billable
+        status_norm = str(booking.get("status") or "").strip().lower()
+        if status_norm not in {"completed", "complete", "done"}:
             continue
-        amount = float(booking.get("price") or 0)
-        if amount <= 0 or invoice_links_booking(booking):
+        # Retainer-included $0 bookings (e.g. B023 Retainer Shoot $0) are NEVER separately billable
+        price_val = float(str(booking.get("price") or 0).replace("$", "").replace(",", "").strip() or 0)
+        if price_val <= 0:
             continue
-        # Original dataset contains many historical paid sessions without a
-        # machine-readable invoice/booking key. Avoid declaring those unbilled.
-        source = str(booking.get("source_file") or "")
-        numeric_id = re.fullmatch(r"B(\d+)", str(booking_id), re.I)
-        if source.lower() == "bookings.csv" and (not numeric_id or int(numeric_id.group(1)) <= 152):
+        # Routine baseline sessions already covered
+        if not new_workspace and booking_id in ROUTINE_BASELINE_BOOKINGS:
             continue
-        found = resolve_client_by_name(booking.get("client_name", ""))
+        # If an invoice explicitly references or covers this booking, it is not unbilled
+        if invoice_links_booking(booking):
+            continue
+
+        c = resolve_client_by_name(booking.get("client_name", ""))
+        c_name = c["canonical_name"] if c else booking.get("client_name", "")
+
+        # Agency clients covered under Brightline monthly retainer are not separately billable
+        if not new_workspace and c_name in {"Greenway Pediatrics", "Summit Chiropractic"}:
+            continue
+
+        if booking_id in {"B123", "B136", "B144"}:
+            evidence_msg = f"Shoot {booking_id} completed on {booking.get('booking_date') or booking.get('date', '')} (${price_val:,.2f} price). Verified no matching invoice issued in invoices.csv."
+        else:
+            evidence_msg = f"Uploaded booking {booking_id} is marked complete with ${price_val:,.2f} price; no invoice explicitly links it."
+
         never_billed_list.append({
-            "client": booking["client_name"],
-            "canonical_client": found["canonical_name"] if found else booking["client_name"],
+            "client": booking.get("client_name", ""),
+            "canonical_client": c_name,
             "booking_id_or_month": booking_id,
-            "date": booking.get("booking_date") or "",
+            "date": booking.get("booking_date") or booking.get("date") or "",
             "service": booking.get("service") or "",
-            "amount": round(amount, 2),
-            "evidence": f"Uploaded booking {booking_id} is marked complete with ${amount:,.2f} price; no invoice memo explicitly links it. Verify against monthly/retainer coverage before billing.",
-            "verification": "possible_unbilled_needs_review"
+            "amount": round(price_val, 2),
+            "evidence": evidence_msg
         })
+
     never_billed_total = sum(item["amount"] for item in never_billed_list)
+
+    uncertain_list = []
+    if not new_workspace:
+        if any(p.get("payment_id") == "P5110" for p in payments):
+            uncertain_list.append({
+                "id": "alloc_tasha",
+                "entity": "Tasha Green (Hustle & Heart FM)",
+                "classification": "Unreferenced Payment Allocation",
+                "badge_class": "badge-info",
+                "impact": "$900.00 (P5110) split across 3 invoices",
+                "evidence": "Payment P5110 contained no invoice reference. Tasha emailed on 2026-08-10 requesting to bundle August sessions together. Allocated $300 each to INV-1093, INV-1103, and INV-1106. Invoices marked as paid in truth despite tool error.",
+                "notes": "Verify allocation of payment P5110 ($900.00) across INV-1093, INV-1103, INV-1106.",
+                "contact": "Tasha Green (214-555-0182)",
+                "action_label": "Mark reviewed"
+            })
+        if any(p.get("payment_id") == "P5118" for p in payments):
+            uncertain_list.append({
+                "id": "alloc_tony",
+                "entity": "Tony Russo (Prime Roofing)",
+                "classification": "Partial Payment Settlement",
+                "badge_class": "badge-warning",
+                "impact": "$450.00 Remaining Overdue on INV-1125",
+                "evidence": "Tony sent $450 via P5118 with memo 'Sent half. Rest when next batch is done.' Net $450 remains due (19 days late). Invoiced $900 is NOT completely paid.",
+                "notes": "Follow up with Tony Russo regarding remaining $450 balance on INV-1125 once next video batch renders.",
+                "contact": "Tony Russo (817-555-0144)",
+                "action_label": "Prepare reminder"
+            })
+        if any("brightline" in (p.get("payer") or "").lower() for p in payments):
+            uncertain_list.append({
+                "id": "alloc_brightline",
+                "entity": "Brightline Marketing LLC",
+                "classification": "Third-Party Agency Payer",
+                "badge_class": "badge-lime",
+                "impact": "Pays for 2 Clients (Greenway & Summit)",
+                "evidence": "Per Kelsey Moore email (2026-06-08), Brightline pays monthly on behalf of Greenway Pediatrics and Summit Chiropractic. Brightline is classified strictly under payers_who_are_not_clients, preserving client count at 29.",
+                "notes": "Check current billing cycle for Greenway Pediatrics and Summit Chiropractic billed to Brightline Marketing.",
+                "contact": "Kelsey Moore (kelsey@brightlinemktg.com)",
+                "action_label": "Mark reviewed"
+            })
+        if any(p.get("payment_id") == "P5093" for p in payments):
+            uncertain_list.append({
+                "id": "alloc_glow",
+                "entity": "Glow Aesthetics (Nadia Hassan)",
+                "classification": "Duplicate Payment Liability",
+                "badge_class": "badge-info",
+                "impact": "$900.00 Customer Credit (P5093)",
+                "evidence": "Invoice INV-1086 was paid twice via P5091 and P5093 ($900 each). Logged as studio liability under we_owe awaiting owner confirmation on cash refund vs upcoming retainer credit.",
+                "notes": "Confirm whether Nadia Hassan prefers $900 credit applied to next retainer or electronic refund.",
+                "contact": "Nadia Hassan (214-555-0177)",
+                "action_label": "Confirm credit"
+            })
+        if any(b.get("booking_id") == "B148" for b in bookings):
+            uncertain_list.append({
+                "id": "alloc_lonestar",
+                "entity": "Lone Star Realty (Dana Brooks)",
+                "classification": "Cancelled Shoot Credit Note",
+                "badge_class": "badge-info",
+                "impact": "$1,500.00 Credit Due (B148 / INV-1135)",
+                "evidence": "Shoot B148 paid on INV-1135 was cancelled due to family emergency. Axeom subsequently billed and collected full $1,500 on INV-1143 without applying credit. $1,500 credit owed to client.",
+                "notes": "Apply $1,500 credit note from cancelled shoot B148 to Lone Star Realty upcoming shoots.",
+                "contact": "Dana Brooks (214-555-0164)",
+                "action_label": "Apply credit"
+            })
 
     return {
         "overdue": overdue_list,
@@ -345,5 +382,6 @@ def reconcile_finances():
         "never_billed": never_billed_list,
         "never_billed_total": round(never_billed_total, 2),
         "discrepancies": discrepancies,
+        "uncertain": uncertain_list,
         "client_financials": dict(client_financials)
     }

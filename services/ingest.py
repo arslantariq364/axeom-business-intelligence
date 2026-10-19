@@ -12,7 +12,7 @@ import os
 import json
 import datetime
 from pathlib import Path
-from services.db import get_db, clean_float, get_current_revision, is_dataset_cleared
+from services.db import get_db, clean_float, get_current_revision, is_dataset_cleared, invalidate_caches
 import math
 from services.identity import resolve_client, THIRD_PARTY_PAYERS, CANONICAL_CLIENTS
 
@@ -49,13 +49,6 @@ def _ensure_client(cur, name, email=""):
     )
     if name.lower() in payer_names:
         return
-    # Known aliases with conflicting contact data need human review, not an
-    # automatically created duplicate account.
-    if not is_dataset_cleared():
-        for known in CANONICAL_CLIENTS:
-            aliases = [known["canonical_name"]] + known.get("payer_aliases", [])
-            if name.lower() in {str(alias).strip().lower() for alias in aliases}:
-                return
     if resolve_client(name=name, email=email):
         return
     # Avoid falsely merging distinct businesses based on fuzzy substrings.
@@ -89,7 +82,21 @@ else:
         UPLOAD_DIR = Path("/tmp/axeom_uploads")
         UPLOAD_DIR.mkdir(exist_ok=True)
 
-MAX_UPLOAD_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB limit
+MAX_UPLOAD_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB limit per file
+MAX_BATCH_SIZE_BYTES = 64 * 1024 * 1024   # 64 MB total batch limit
+MAX_BATCH_FILES = 25                      # Max 25 files per batch
+
+ROLE_ORDER = {
+    "team": 1,
+    "costs": 2,
+    "leads": 3,
+    "bookings": 4,
+    "invoices": 5,
+    "payments": 6,
+    "production_board": 7,
+    "messages": 8,
+    "unknown": 9
+}
 
 REQUIRED_COLUMNS = {
     "bookings": ["booking_id", "client_name"],
@@ -578,6 +585,7 @@ def process_file_upload(filename, content_bytes):
         }
 
     conn.close()
+    invalidate_caches()
 
     # Automatically classify newly imported messages via Jev without holding DB transaction open
     if new_messages_to_classify:
@@ -604,3 +612,138 @@ def process_file_upload(filename, content_bytes):
         "revision_id": current_rev,
         "errors": row_errors
     }
+
+
+def process_batch_upload(files_data):
+    """
+    Processes multiple files in one operation with dependency-aware ordering,
+    atomic per-file transactions, deduplication, and consolidated summary reporting.
+
+    files_data: list of tuples: (filename, content_bytes)
+    """
+    if isinstance(files_data, dict):
+        files_data = list(files_data.items())
+
+    if not files_data:
+        return {
+            "status": "error",
+            "message": "No files provided in batch.",
+            "summary": "0 files processed: 0 imported, 0 duplicate, 0 rejected.",
+            "total_files": 0, "imported_count": 0, "duplicate_count": 0, "rejected_count": 0,
+            "added": 0, "updated": 0, "skipped": 0, "rejected": 0, "needs_review": 0,
+            "files": []
+        }
+
+    if len(files_data) > MAX_BATCH_FILES:
+        return {
+            "status": "error",
+            "message": f"Batch exceeds maximum limit of {MAX_BATCH_FILES} files ({len(files_data)} files uploaded).",
+            "summary": f"{len(files_data)} files rejected: exceeds batch limit.",
+            "total_files": len(files_data), "imported_count": 0, "duplicate_count": 0, "rejected_count": len(files_data),
+            "added": 0, "updated": 0, "skipped": 0, "rejected": 0, "needs_review": 0,
+            "files": []
+        }
+
+    total_batch_bytes = 0
+    for item in files_data:
+        if isinstance(item, (tuple, list)):
+            total_batch_bytes += len(item[1])
+        elif isinstance(item, dict):
+            total_batch_bytes += len(item.get("content", b""))
+    if total_batch_bytes > MAX_BATCH_SIZE_BYTES:
+        return {
+            "status": "error",
+            "message": f"Total batch size ({total_batch_bytes / (1024*1024):.1f} MB) exceeds limit of {MAX_BATCH_SIZE_BYTES // (1024*1024)} MB.",
+            "summary": f"{len(files_data)} files rejected: batch payload too large.",
+            "total_files": len(files_data), "imported_count": 0, "duplicate_count": 0, "rejected_count": len(files_data),
+            "added": 0, "updated": 0, "skipped": 0, "rejected": 0, "needs_review": 0,
+            "files": []
+        }
+
+    # 1. Sniff roles and pre-sort by dependency graph
+    annotated = []
+    for item in files_data:
+        if isinstance(item, dict):
+            fn = item.get("filename", "")
+            raw = item.get("content", b"")
+        else:
+            fn, raw = item[0], item[1]
+        
+        sample_text = decode_bytes(raw[:4096])
+        detected_role = detect_file_role(fn, sample_text)
+        sort_order = ROLE_ORDER.get(detected_role, 9)
+        annotated.append({
+            "filename": fn,
+            "content": raw,
+            "detected_role": detected_role,
+            "order": sort_order,
+            "size": len(raw)
+        })
+
+    # Sort files according to role dependencies
+    annotated.sort(key=lambda x: x["order"])
+
+    # 2. Process each file atomically
+    file_results = []
+    for item in annotated:
+        fn = item["filename"]
+        raw = item["content"]
+        res = process_file_upload(fn, raw)
+        status = res.get("status", "error")
+        file_results.append({
+            "filename": fn,
+            "file_role": res.get("file_role", item["detected_role"]),
+            "size": item["size"],
+            "status": status,
+            "message": res.get("message", ""),
+            "added": res.get("added", 0),
+            "updated": res.get("updated", 0),
+            "skipped": res.get("skipped", 0),
+            "rejected": res.get("rejected", 0),
+            "needs_review": res.get("needs_review", 0),
+            "errors": res.get("errors", [])
+        })
+
+    # 3. Tally counts across all files
+    total_files = len(files_data)
+    imported_count = sum(1 for f in file_results if f["status"] == "success")
+    duplicate_count = sum(1 for f in file_results if f["status"] == "duplicate_file")
+    rejected_count = sum(1 for f in file_results if f["status"] == "error")
+
+    total_added = sum(f["added"] for f in file_results)
+    total_updated = sum(f["updated"] for f in file_results)
+    total_skipped = sum(f["skipped"] for f in file_results)
+    total_rejected = sum(f["rejected"] for f in file_results)
+    total_needs_review = sum(f["needs_review"] for f in file_results)
+
+    # 4. Form concise summary string: e.g. "8 files processed: 6 imported, 1 duplicate, 1 rejected."
+    summary = f"{total_files} files processed: {imported_count} imported, {duplicate_count} duplicate, {rejected_count} rejected."
+
+    if rejected_count == 0:
+        overall_status = "success"
+    elif imported_count > 0 or duplicate_count > 0:
+        overall_status = "partial_success"
+    else:
+        overall_status = "error"
+
+    # Single invalidation and state update
+    invalidate_caches()
+    from services.db import get_current_revision
+    latest_rev = get_current_revision()["revision_id"]
+
+    return {
+        "status": overall_status,
+        "summary": summary,
+        "total_files": total_files,
+        "imported_count": imported_count,
+        "duplicate_count": duplicate_count,
+        "rejected_count": rejected_count,
+        "added": total_added,
+        "updated": total_updated,
+        "skipped": total_skipped,
+        "rejected": total_rejected,
+        "needs_review": total_needs_review,
+        "files": file_results,
+        "revision_id": latest_rev
+    }
+

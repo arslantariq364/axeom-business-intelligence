@@ -17,10 +17,20 @@ try:
 except ImportError:
     PSYCOPG_AVAILABLE = False
 
+try:
+    from flask import g, has_request_context
+except ImportError:
+    has_request_context = lambda: False
+    g = None
+
 import sqlite3
 
 DB_PATH = os.environ.get("AXEOM_DB_PATH", "axeom.db")
 DATA_DIR = Path("submission/original_data") if Path("submission/original_data").exists() else Path("data")
+
+
+def get_db_path():
+    return os.environ.get("AXEOM_DB_PATH", "axeom.db")
 
 
 def get_database_url():
@@ -160,8 +170,9 @@ class PostgresCursorWrapper:
 
 class PostgresConnectionWrapper:
     """Connection wrapper ensuring transaction and cursor compatibility."""
-    def __init__(self, conn):
+    def __init__(self, conn, is_request_scoped=False):
         self._conn = conn
+        self.is_request_scoped = is_request_scoped
 
     def cursor(self):
         return PostgresCursorWrapper(self._conn.cursor())
@@ -172,13 +183,64 @@ class PostgresConnectionWrapper:
     def rollback(self):
         self._conn.rollback()
 
-    def close(self):
-        self._conn.close()
+    def close(self, force=False):
+        if self.is_request_scoped and not force:
+            return  # Reused across request lifecycle; closed by teardown handler
+        try:
+            self._conn.close()
+        except Exception:
+            pass
 
     def execute(self, query, params=None):
         cur = self.cursor()
         cur.execute(query, params)
         return cur
+
+    def executemany(self, query, seq_of_params):
+        cur = self.cursor()
+        cur.executemany(query, seq_of_params)
+        return cur
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.rollback()
+        else:
+            self.commit()
+
+
+class SQLiteConnectionWrapper:
+    """Connection wrapper ensuring SQLite transaction and cursor compatibility with request reuse."""
+    def __init__(self, conn, is_request_scoped=False):
+        self._conn = conn
+        self.is_request_scoped = is_request_scoped
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self, force=False):
+        if self.is_request_scoped and not force:
+            return  # Reused across request lifecycle; closed by teardown handler
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def execute(self, query, params=None):
+        if params is not None:
+            return self._conn.execute(query, params)
+        return self._conn.execute(query)
+
+    def executemany(self, query, seq_of_params):
+        return self._conn.executemany(query, seq_of_params)
 
     def __enter__(self):
         return self
@@ -195,21 +257,51 @@ def get_db():
     Returns active database connection:
     - Neon PostgreSQL connection if DATABASE_URL is set
     - SQLite connection if DATABASE_URL is unset
+    Safely reuses connection within an active Flask request context without
+    creating unsafe global cross-request connection leaks.
     """
+    in_request = has_request_context()
+    if in_request and hasattr(g, "_db_conn") and g._db_conn is not None:
+        return g._db_conn
+
     database_url = get_database_url()
     if database_url:
         if not PSYCOPG_AVAILABLE:
             raise RuntimeError("psycopg is required when DATABASE_URL is configured. Run: pip install 'psycopg[binary]'")
         dsn = normalize_database_url(database_url)
-        raw_conn = psycopg.connect(dsn, row_factory=dict_row)
-        return PostgresConnectionWrapper(raw_conn)
+        # Serverless connection timeout: fail fast if database is unreachable
+        raw_conn = psycopg.connect(dsn, row_factory=dict_row, connect_timeout=10)
+        pg_schema = os.environ.get("AXEOM_PG_SCHEMA")
+        if pg_schema:
+            raw_conn.execute(f"SET search_path TO {pg_schema}, public")
+        conn = PostgresConnectionWrapper(raw_conn, is_request_scoped=in_request)
+    else:
+        # SQLite Local Connection
+        db_path = os.environ.get("AXEOM_DB_PATH", "axeom.db")
+        raw_conn = sqlite3.connect(db_path)
+        raw_conn.row_factory = sqlite3.Row
+        raw_conn.execute("PRAGMA foreign_keys = ON")
+        conn = SQLiteConnectionWrapper(raw_conn, is_request_scoped=in_request)
 
-    # SQLite Local Connection
-    db_path = os.environ.get("AXEOM_DB_PATH", "axeom.db")
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    if in_request:
+        g._db_conn = conn
     return conn
+
+
+def close_request_db(exception=None):
+    """Teardown handler to cleanly close the request-scoped database connection."""
+    if has_request_context() and hasattr(g, "_db_conn") and g._db_conn is not None:
+        conn = g._db_conn
+        g._db_conn = None
+        if exception is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        try:
+            conn.close(force=True)
+        except Exception:
+            pass
 
 
 def clean_float(val, default=0.0):
@@ -224,18 +316,23 @@ def clean_float(val, default=0.0):
         return default
 
 
-_DB_INITIALIZED = False
+_INITIALIZED_TARGETS = set()
 
 def init_db(force=False):
     """Idempotently initializes database tables and runs versioned migrations."""
-    global _DB_INITIALIZED
+    global _INITIALIZED_TARGETS
+    target = get_database_url() if is_postgres() else str(get_db_path())
     if is_postgres():
-        if _DB_INITIALIZED and not force:
+        if target in _INITIALIZED_TARGETS and not force:
             return
         _init_db_postgres()
-        _DB_INITIALIZED = True
+        _INITIALIZED_TARGETS.add(target)
     else:
+        db_file = Path(get_db_path())
+        if not force and target in _INITIALIZED_TARGETS and db_file.exists() and db_file.stat().st_size > 0:
+            return
         _init_db_sqlite()
+        _INITIALIZED_TARGETS.add(target)
 
 
 def _init_db_postgres():
@@ -727,7 +824,7 @@ def _init_db_sqlite():
 
 
 def run_migrations(conn):
-    """Runs column migrations safely depending on active database dialect."""
+    """Runs column migrations and creates indexes safely depending on active database dialect."""
     cur = conn.cursor()
     tables_to_migrate = ["clients", "leads", "invoices", "payments", "bookings", "messages", "production_board"]
 
@@ -743,6 +840,25 @@ def run_migrations(conn):
             cur.execute("ALTER TABLE file_uploads ADD COLUMN IF NOT EXISTS reverted_at VARCHAR(64)")
         except Exception:
             pass
+
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_invoices_deleted ON invoices(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_invoices_no ON invoices(invoice_no)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_deleted ON payments(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_id ON payments(payment_id)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(reference)",
+            "CREATE INDEX IF NOT EXISTS idx_bookings_deleted ON bookings(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_bookings_id ON bookings(booking_id)",
+            "CREATE INDEX IF NOT EXISTS idx_leads_deleted ON leads(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_production_board_deleted ON production_board(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages(deleted_at)",
+            "CREATE INDEX IF NOT EXISTS idx_clients_deleted ON clients(deleted_at)",
+        ]
+        for idx_sql in indexes:
+            try:
+                cur.execute(idx_sql)
+            except Exception:
+                pass
         return
 
     # SQLite migrations
@@ -767,6 +883,25 @@ def run_migrations(conn):
         if "deleted_at" not in cols:
             cur.execute(f"ALTER TABLE {t} ADD COLUMN deleted_at TEXT")
 
+    sqlite_indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_invoices_deleted ON invoices(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_invoices_no ON invoices(invoice_no)",
+        "CREATE INDEX IF NOT EXISTS idx_payments_deleted ON payments(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_payments_id ON payments(payment_id)",
+        "CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(reference)",
+        "CREATE INDEX IF NOT EXISTS idx_bookings_deleted ON bookings(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_bookings_id ON bookings(booking_id)",
+        "CREATE INDEX IF NOT EXISTS idx_leads_deleted ON leads(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_production_board_deleted ON production_board(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_clients_deleted ON clients(deleted_at)",
+    ]
+    for idx_sql in sqlite_indexes:
+        try:
+            cur.execute(idx_sql)
+        except Exception:
+            pass
+
 
 def get_current_revision():
     conn = get_db()
@@ -788,19 +923,57 @@ def get_recent_uploads(limit=10):
     return rows
 
 
+_MODULE_DATASET_CLEARED = None
+_MODULE_TARGET = None
+
 def is_dataset_cleared():
     """Persistent empty-workspace marker: prevents implicit challenge-data re-seeding."""
+    global _MODULE_DATASET_CLEARED, _MODULE_TARGET
+    if has_request_context() and hasattr(g, "_is_dataset_cleared"):
+        return g._is_dataset_cleared
+
+    current_target = get_database_url() if is_postgres() else str(get_db_path())
+    if not has_request_context() and _MODULE_DATASET_CLEARED is not None and _MODULE_TARGET == current_target:
+        return _MODULE_DATASET_CLEARED
+
     conn = get_db()
     try:
         cur = conn.cursor()
         cur.execute("SELECT value FROM app_settings WHERE key = ?", ("dataset_cleared",))
         row = cur.fetchone()
-        return bool(row and row["value"] == "1")
+        val = bool(row and row["value"] == "1")
     except Exception:
         # During first-time initialization app_settings may not exist yet.
-        return False
+        val = False
     finally:
         conn.close()
+
+    if has_request_context():
+        g._is_dataset_cleared = val
+    else:
+        _MODULE_DATASET_CLEARED = val
+        _MODULE_TARGET = current_target
+    return val
+
+
+def invalidate_caches():
+    """Invalidates request-scoped and memory-cached database state."""
+    global _MODULE_DATASET_CLEARED, _MODULE_TARGET
+    _MODULE_DATASET_CLEARED = None
+    _MODULE_TARGET = None
+    if has_request_context():
+        if hasattr(g, "_is_dataset_cleared"):
+            delattr(g, "_is_dataset_cleared")
+        if hasattr(g, "_client_lookup_idx"):
+            delattr(g, "_client_lookup_idx")
+        for attr in list(vars(g).keys()):
+            if attr.startswith("_canonical_clients_"):
+                delattr(g, attr)
+    try:
+        from services.identity import invalidate_identity_caches
+        invalidate_identity_caches()
+    except Exception:
+        pass
 
 
 def seed_db_if_empty():

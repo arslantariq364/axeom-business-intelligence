@@ -277,9 +277,16 @@ def get_requests_and_leads():
     # Filter out lost requests if the underlying production video was soft-deleted
     cur.execute("SELECT video_id FROM production_board WHERE deleted_at IS NOT NULL")
     deleted_video_ids = {r[0] for r in cur.fetchall()}
-    cur.execute("SELECT video_id, client, notes_on_board FROM production_board WHERE deleted_at IS NULL")
-    board = {r["video_id"]: dict(r) for r in cur.fetchall()}
-    cur.execute("""SELECT msg_datetime, channel, entity, body, source_file
+    cur.execute("SELECT video_id, client, title, notes_on_board FROM production_board WHERE deleted_at IS NULL")
+    board_rows = [dict(r) for r in cur.fetchall()]
+    board = {r["video_id"]: r for r in board_rows}
+    board_by_title = {}
+    for r in board_rows:
+        t_clean = re.sub(r'[^a-z0-9]', '', str(r.get("title") or "").lower())
+        if t_clean and len(t_clean) >= 4:
+            board_by_title[t_clean] = r
+
+    cur.execute("""SELECT id, msg_datetime, channel, entity, body, source_file
                    FROM messages WHERE deleted_at IS NULL""")
     messages = [dict(r) for r in cur.fetchall()]
     conn.close()
@@ -290,50 +297,94 @@ def get_requests_and_leads():
         lr for lr in legacy_requests
         if lr.get("video_id") in board and lr.get("video_id") not in deleted_video_ids
     ]
-    # Additional uploaded messages are inspected for explicitly named videos and
-    # actionable change requests that are absent from their production board.
-    # Do not infer missing edits from generic praise, meetings or old audit messages.
+
+    # Additional or newly uploaded messages: link to clients and production items
     known = {(r["video_id"], r["request_date"]) for r in active_lost_requests}
+    known_bodies = {r.get("why_it_was_lost", "") for r in active_lost_requests}
+    uncertain_requests = []
+
     markers = re.compile(
         r"\b(?:please|change|edit|fix|revise|revision|trim|cut|remove|replace|"
-        r"captions?|subtitles?|font|typo|audio|logo|wrong|missing|swap)\b", re.I)
+        r"captions?|subtitles?|font|typo|audio|logo|wrong|missing|swap|music|song|outro|intro|b-roll|blur)\b", re.I)
     video_token = re.compile(r"\bV\d{2,6}\b", re.I)
+
+    # In baseline mode, initial messages in messages.txt are already accounted for in LOST_REQUESTS.
+    # New uploaded messages (or any non-baseline messages) are actively analyzed.
+    from services.identity import resolve_client_by_name
+
     for msg in messages:
-        if str(msg.get("source_file") or "").lower() == "messages.txt":
+        source_file = str(msg.get("source_file") or "").lower()
+        if not is_dataset_cleared() and source_file in {"messages.txt", "genesis", "baseline"}:
             continue
-        body = str(msg.get("body") or "")
-        if not markers.search(body):
+        body = str(msg.get("body") or "").strip()
+        if not body or not markers.search(body):
             continue
         request_day = str(msg.get("msg_datetime") or "")[:10]
-        for video_id in set(m.group(0).upper() for m in video_token.finditer(body)):
-            ticket = board.get(video_id)
-            if ticket is None or (video_id, request_day) in known:
-                continue
-            board_notes = str(ticket.get("notes_on_board") or "").strip()
-            if board_notes:
-                continue  # Manual-review only: cannot prove missing from non-empty notes.
-            active_lost_requests.append({
-                "video_id": video_id,
-                "request_date": request_day,
-                "came_by": str(msg.get("channel") or "uploaded message").lower(),
-                "client": ticket.get("client") or msg.get("entity") or "",
-                "why_it_was_lost": (
-                    f"Imported {msg.get('channel') or 'message'} on {request_day} requests "
-                    f"a change to {video_id}, but its production-board notes are empty. "
-                    f"Source message: {body[:240]}"
-                ),
-                "verification": "automated_candidate_needs_owner_review"
+        entity = str(msg.get("entity") or "").strip()
+        channel = str(msg.get("channel") or "message").lower()
+
+        # Check if already in baseline lost requests
+        if any(body[:50] in kb for kb in known_bodies):
+            continue
+
+        # 1. Search for explicit video ID token (e.g. V010, V196, etc.)
+        found_vids = set(m.group(0).upper() for m in video_token.finditer(body))
+        
+        # 2. If no explicit token, search for matching video title on the board
+        if not found_vids:
+            body_norm = re.sub(r'[^a-z0-9]', '', body.lower())
+            for t_clean, r in board_by_title.items():
+                if t_clean in body_norm:
+                    found_vids.add(r["video_id"])
+                    break
+
+        # 3. If video identified:
+        if found_vids:
+            for video_id in found_vids:
+                ticket = board.get(video_id)
+                if ticket is None or (video_id, request_day) in known:
+                    continue
+                board_notes = str(ticket.get("notes_on_board") or "").strip()
+                if board_notes:
+                    continue  # Non-empty notes means instruction was not dropped
+
+                item_client = ticket.get("client") or entity
+                active_lost_requests.append({
+                    "video_id": video_id,
+                    "request_date": request_day,
+                    "came_by": channel,
+                    "client": item_client,
+                    "why_it_was_lost": (
+                        f"Imported {channel} on {request_day} requests a change to {video_id} ('{ticket.get('title', '')}'), "
+                        f"but production-board notes are empty. Message: \"{body[:180]}\""
+                    ),
+                    "verification": "automated_candidate_needs_owner_review"
+                })
+                known.add((video_id, request_day))
+        else:
+            # 4. Actionable edit request without unambiguous video ID -> surface for owner review
+            c = resolve_client_by_name(entity)
+            c_name = c["canonical_name"] if c else entity
+            uncertain_requests.append({
+                "message_id": msg.get("id"),
+                "date": request_day,
+                "client": c_name,
+                "channel": channel,
+                "body": body,
+                "reason": "Actionable edit request detected, but no matching video ID or title confirmed. Needs owner assignment."
             })
-            known.add((video_id, request_day))
 
     unreplied = [l for l in leads if not l.get('first_reply') or not l['first_reply'].strip()]
     replied = [l for l in leads if l.get('first_reply') and l['first_reply'].strip()]
 
+    cleared = is_dataset_cleared()
     return {
         "lost_requests": active_lost_requests,
         "lost_requests_count": len(active_lost_requests),
-        "root_causes": ROOT_CAUSES,
-        "deterioration": DETERIORATION,
+        "uncertain_requests": uncertain_requests,
+        "uncertain_requests_count": len(uncertain_requests),
+        "root_causes": [] if cleared else ROOT_CAUSES,
+        "deterioration": {"month": "", "explanation": ""} if cleared else DETERIORATION,
         "unreplied_leads": unreplied,
         "unreplied_leads_count": len(unreplied),
         "total_leads_count": len(leads),

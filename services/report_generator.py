@@ -34,7 +34,7 @@ def generate_business_report():
     req = get_requests_and_leads()
 
     # 4. Analytics, Churn & Recommendations
-    ana = get_analytics()
+    ana = get_analytics(fin=fin)
 
     # 5. Dataset Revision State
     rev = get_current_revision()

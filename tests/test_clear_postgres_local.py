@@ -1,13 +1,17 @@
-"""Additional test on the disposable local PostgreSQL CI service only."""
 import os
 from urllib.parse import urlparse
+import pytest
 
 from services.db import get_database_url, get_db, is_dataset_cleared, seed_db_if_empty
 from services.data_management import CLEARABLE_TABLES, get_reset_preview, execute_reset
 
+pytestmark = pytest.mark.skipif(
+    not os.getenv("AXEOM_POSTGRES_SMOKE"),
+    reason="Requires local PostgreSQL container smoke test environment"
+)
+
 
 def test_local_postgres_clear_all(monkeypatch):
-    assert os.environ.get("AXEOM_POSTGRES_SMOKE") == "1"
     host = urlparse(get_database_url() or "").hostname
     assert host in ("127.0.0.1", "localhost"), "Destructive CI tests only use local containers"
     monkeypatch.setenv("OWNER_PIN", "example-local-strong-password")

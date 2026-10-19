@@ -9,7 +9,7 @@ import json
 import shutil
 import datetime
 from pathlib import Path
-from services.db import get_db, is_postgres
+from services.db import get_db, is_postgres, invalidate_caches
 
 TABLE_CONFIG = {
     "clients": {
@@ -214,6 +214,7 @@ def update_record(table_name: str, record_id: str, updates: dict, performed_by: 
     cur.execute(f"UPDATE {table_name} SET {', '.join(set_clauses)} WHERE {pk} = ?", params)
     conn.commit()
     conn.close()
+    invalidate_caches()
 
     log_audit_action("edit", table_name, record_id, {
         "prior": {k: prior.get(k) for k in valid_updates},
@@ -236,6 +237,7 @@ def archive_record(table_name: str, record_id: str, performed_by: str = "owner")
     cur.execute(f"UPDATE {table_name} SET is_archived = 1 WHERE {pk} = ?", (str(record_id),))
     conn.commit()
     conn.close()
+    invalidate_caches()
 
     log_audit_action("archive", table_name, record_id, {"is_archived": 1}, performed_by=performed_by)
     return {"status": "success", "message": f"Archived {table_name} record {record_id}", "record": get_record(table_name, record_id)}
@@ -254,6 +256,7 @@ def restore_record(table_name: str, record_id: str, performed_by: str = "owner")
     cur.execute(f"UPDATE {table_name} SET is_archived = 0, deleted_at = NULL WHERE {pk} = ?", (str(record_id),))
     conn.commit()
     conn.close()
+    invalidate_caches()
 
     log_audit_action("restore", table_name, record_id, {"is_archived": 0, "deleted_at": None}, performed_by=performed_by)
     return {"status": "success", "message": f"Restored {table_name} record {record_id}", "record": get_record(table_name, record_id)}
@@ -290,6 +293,7 @@ def soft_delete_record(table_name: str, record_id: str, performed_by: str = "own
     cur.execute(f"UPDATE {table_name} SET deleted_at = ?, is_archived = 1 WHERE {pk} = ?", (now_iso, str(record_id)))
     conn.commit()
     conn.close()
+    invalidate_caches()
 
     log_audit_action("soft_delete", table_name, record_id, {"deleted_at": now_iso}, performed_by=performed_by)
     return {"status": "success", "message": f"Soft-deleted {table_name} record {record_id}", "record": get_record(table_name, record_id)}
@@ -552,6 +556,7 @@ def revert_upload(upload_id: int, performed_by: str = "owner"):
 
     conn.commit()
     conn.close()
+    invalidate_caches()
 
     log_audit_action("upload_revert", "file_uploads", str(upload_id), {
         "filename": filename,
@@ -692,6 +697,7 @@ def execute_reset(confirmation_phrase: str, performed_by: str = "owner",
         if any(after.values()):
             raise RuntimeError("Incomplete wipe: one or more tables still have rows.")
         conn.commit()
+        invalidate_caches()
         return {
             "status": "success",
             "cleared": True,

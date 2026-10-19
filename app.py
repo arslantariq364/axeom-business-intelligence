@@ -10,14 +10,14 @@ try:
 except ImportError:
     pass
 from flask import Flask, render_template, jsonify, request, session, make_response
-from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads, is_dataset_cleared
+from services.db import init_db, seed_db_if_empty, get_current_revision, get_recent_uploads, is_dataset_cleared, close_request_db
 from services.identity import get_canonical_clients, get_third_party_payers
 from services.finance import reconcile_finances
 from services.requests import get_requests_and_leads
 from services.analytics import get_analytics
 from services.decisions import get_all_decisions, save_decision
 from services.history import get_client_history
-from services.ingest import process_file_upload
+from services.ingest import process_file_upload, process_batch_upload
 from services.evidence import EVIDENCE_REGISTER, search_records
 from services.export import export_answers_json, build_answers_json
 from services.auth import is_owner_authorized, authorize_owner_session, clear_owner_session
@@ -31,7 +31,10 @@ from services.report_generator import generate_business_report, render_report_ht
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "axeom-secret-production-key-2026")
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # 64 MB max batch upload
+
+# Register request database cleanup
+app.teardown_appcontext(close_request_db)
 
 # Ensure database is initialized and seeded
 if not os.environ.get("VERCEL"):
@@ -81,7 +84,7 @@ def get_state():
     cleared_workspace = is_dataset_cleared()
     fin = reconcile_finances()
     req = get_requests_and_leads()
-    ana = get_analytics()
+    ana = get_analytics(fin=fin)
     decisions = get_all_decisions()
 
     # Dynamic client listing respecting active vs. archived state
@@ -157,6 +160,7 @@ def get_state():
     })
 
 @app.route("/api/decisions", methods=["POST"])
+@app.route("/api/decision", methods=["POST"])
 def post_decision():
     data = request.get_json(force=True)
     action_id = data.get("action_id")
@@ -178,25 +182,44 @@ def client_history_route(client_id):
     return jsonify({"status": "success", "data": history})
 
 @app.route("/api/upload", methods=["POST"])
+@app.route("/api/upload-batch", methods=["POST"])
 def upload_file_route():
-    if 'file' not in request.files:
+    uploaded_files = []
+    if 'files' in request.files:
+        uploaded_files.extend(request.files.getlist('files'))
+    if 'file' in request.files:
+        uploaded_files.extend(request.files.getlist('file'))
+
+    valid_files = [f for f in uploaded_files if f and f.filename]
+    if not valid_files:
         return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({"status": "error", "message": "Empty filename"}), 400
+    # Single-file upload via /api/upload preserves standard single-file response format
+    if len(valid_files) == 1 and request.path == "/api/upload":
+        file = valid_files[0]
+        content_bytes = file.read()
+        result = process_file_upload(file.filename, content_bytes)
 
-    content_bytes = file.read()
-    result = process_file_upload(file.filename, content_bytes)
+        if result.get("status") == "success" and not app.config.get("TESTING"):
+            try:
+                export_answers_json()
+            except Exception:
+                pass
 
-    # Automatically recompute working answers export if successful and not in testing mode
-    if result.get("status") == "success" and not app.config.get("TESTING"):
+        status_code = 200 if result.get("status") in ["success", "duplicate_file"] else 400
+        return jsonify(result), status_code
+
+    # Multiple files or explicit /api/upload-batch endpoint
+    batch_data = [(f.filename, f.read()) for f in valid_files]
+    result = process_batch_upload(batch_data)
+
+    if result.get("status") in ["success", "partial_success"] and not app.config.get("TESTING"):
         try:
             export_answers_json()
         except Exception:
             pass
 
-    status_code = 200 if result.get("status") in ["success", "duplicate_file"] else 400
+    status_code = 200 if result.get("status") in ["success", "duplicate_file", "partial_success"] else 400
     return jsonify(result), status_code
 
 @app.route("/api/search")

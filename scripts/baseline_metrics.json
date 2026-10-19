@@ -1,0 +1,57 @@
+[
+  {
+    "endpoint": "/api/state",
+    "status_code": 200,
+    "total_time_ms": 254.56,
+    "db_connections": 9,
+    "db_connection_time_ms": 0.48,
+    "sql_queries": 14,
+    "sql_execution_time_ms": 4.46,
+    "business_calc_time_ms": 246.86,
+    "serialization_time_ms": 2.76
+  },
+  {
+    "endpoint": "/api/manage/reset/preview",
+    "status_code": 200,
+    "total_time_ms": 5.37,
+    "db_connections": 1,
+    "db_connection_time_ms": 0.32,
+    "sql_queries": 16,
+    "sql_execution_time_ms": 2.27,
+    "business_calc_time_ms": 2.57,
+    "serialization_time_ms": 0.21
+  },
+  {
+    "endpoint": "/api/manage/records",
+    "status_code": 200,
+    "total_time_ms": 5.45,
+    "db_connections": 1,
+    "db_connection_time_ms": 0.5,
+    "sql_queries": 2,
+    "sql_execution_time_ms": 1.24,
+    "business_calc_time_ms": 2.95,
+    "serialization_time_ms": 0.77
+  },
+  {
+    "endpoint": "/api/manage/uploads",
+    "status_code": 200,
+    "total_time_ms": 5.21,
+    "db_connections": 1,
+    "db_connection_time_ms": 0.45,
+    "sql_queries": 1,
+    "sql_execution_time_ms": 1.2,
+    "business_calc_time_ms": 2.69,
+    "serialization_time_ms": 0.87
+  },
+  {
+    "endpoint": "/api/reports/business-report",
+    "status_code": 200,
+    "total_time_ms": 80.53,
+    "db_connections": 7,
+    "db_connection_time_ms": 0.59,
+    "sql_queries": 12,
+    "sql_execution_time_ms": 3.41,
+    "business_calc_time_ms": 75.12,
+    "serialization_time_ms": 1.41
+  }
+]
