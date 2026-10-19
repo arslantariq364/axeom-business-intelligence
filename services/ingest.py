@@ -621,6 +621,9 @@ def process_batch_upload(files_data):
 
     files_data: list of tuples: (filename, content_bytes)
     """
+    if isinstance(files_data, dict):
+        files_data = list(files_data.items())
+
     if not files_data:
         return {
             "status": "error",
@@ -641,7 +644,12 @@ def process_batch_upload(files_data):
             "files": []
         }
 
-    total_batch_bytes = sum(len(content) for _, content in files_data)
+    total_batch_bytes = 0
+    for item in files_data:
+        if isinstance(item, (tuple, list)):
+            total_batch_bytes += len(item[1])
+        elif isinstance(item, dict):
+            total_batch_bytes += len(item.get("content", b""))
     if total_batch_bytes > MAX_BATCH_SIZE_BYTES:
         return {
             "status": "error",

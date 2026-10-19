@@ -271,6 +271,9 @@ def get_db():
         dsn = normalize_database_url(database_url)
         # Serverless connection timeout: fail fast if database is unreachable
         raw_conn = psycopg.connect(dsn, row_factory=dict_row, connect_timeout=10)
+        pg_schema = os.environ.get("AXEOM_PG_SCHEMA")
+        if pg_schema:
+            raw_conn.execute(f"SET search_path TO {pg_schema}, public")
         conn = PostgresConnectionWrapper(raw_conn, is_request_scoped=in_request)
     else:
         # SQLite Local Connection
