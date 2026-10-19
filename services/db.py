@@ -942,6 +942,16 @@ def is_dataset_cleared():
         cur.execute("SELECT value FROM app_settings WHERE key = ?", ("dataset_cleared",))
         row = cur.fetchone()
         val = bool(row and row["value"] == "1")
+        if val:
+            try:
+                cur.execute("SELECT COUNT(*) FROM invoices WHERE deleted_at IS NULL")
+                cnt = cur.fetchone()[0]
+                if cnt > 0:
+                    val = False
+                    cur.execute("DELETE FROM app_settings WHERE key = ?", ("dataset_cleared",))
+                    conn.commit()
+            except Exception:
+                pass
     except Exception:
         # During first-time initialization app_settings may not exist yet.
         val = False

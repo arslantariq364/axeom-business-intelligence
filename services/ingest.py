@@ -546,6 +546,10 @@ def process_file_upload(filename, content_bytes):
         # 3. Increment Dataset Revision if data mutated
         new_rev_id = None
         if added_count > 0 or updated_count > 0:
+            try:
+                cur.execute("DELETE FROM app_settings WHERE key = ?", ("dataset_cleared",))
+            except Exception:
+                pass
             summary_info = {
                 "file": filename,
                 "role": role,
